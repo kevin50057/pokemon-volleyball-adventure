@@ -1,0 +1,36 @@
+{
+  "name": "pokemon-volleyball-adventure",
+  "private": true,
+  "version": "0.1.0",
+  "description": "寶可夢排球 Ultimate 遠征版（TypeScript）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@pixi/canvas-display": "6.4.2",
+    "@pixi/canvas-prepare": "6.4.2",
+    "@pixi/canvas-renderer": "6.4.2",
+    "@pixi/canvas-sprite": "6.4.2",
+    "@pixi/constants": "6.4.2",
+    "@pixi/core": "6.4.2",
+    "@pixi/display": "6.4.2",
+    "@pixi/loaders": "6.4.2",
+    "@pixi/math": "6.4.2",
+    "@pixi/prepare": "6.4.2",
+    "@pixi/settings": "6.4.2",
+    "@pixi/sound": "4.2.1",
+    "@pixi/sprite": "6.4.2",
+    "@pixi/sprite-animated": "6.4.2",
+    "@pixi/spritesheet": "6.4.2",
+    "@pixi/ticker": "6.4.2",
+    "@pixi/utils": "6.4.2"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vite": "5.4.11"
+  }
+}

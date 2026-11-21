@@ -1,7 +1,7 @@
 /**
  * 卡牌與羈絆的計算（純函式）。SPEC §4.1：依 ID 排序後相乘、最後做上下限；同一張卡不會重複生效。
  */
-import { BONDS, BOND_NEED, CAPS, CARD_SLOTS, CARDS, CHAR_TAG, cardById, type Stat, type Tag } from './content';
+import { BONDS, BOND_NEED, CAPS, MAX_CARD_SLOTS, CARDS, CHAR_TAG, cardById, type Stat, type Tag } from './content';
 import type { Rng } from './rng';
 
 export type Mods = Record<Stat, number>;
@@ -20,7 +20,7 @@ function uniqueSorted(ids: readonly string[]): string[] { return Array.from(new 
 /** 卡 × 羈絆（還沒乘角色本身、還沒做上下限） */
 export function cardMods(lead: string, equipped: readonly string[]): Mods {
   const m: Mods = { move: 1, jump: 1, spike: 1, dive: 1 };
-  uniqueSorted(equipped).slice(0, CARD_SLOTS).forEach((id) => {
+  uniqueSorted(equipped).slice(0, MAX_CARD_SLOTS).forEach((id) => {
     const c = cardById(id);
     if (!c) return;
     STATS.forEach((s) => { const v = c.mods[s]; if (v !== undefined) m[s] *= v; });

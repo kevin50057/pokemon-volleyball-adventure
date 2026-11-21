@@ -10,7 +10,7 @@ import { RuleError, applySettlement, beginMatch, chooseBranch, eventOf, leaveSup
 import { clampBall } from './field';
 import { rngFor } from './rng';
 import { START_HEARTS } from './content';
-import type { ExpeditionRunV1 } from './types';
+import type { ExpeditionRun } from './types';
 
 const IDS = ['pikachu', 'vaporeon', 'jolteon', 'flareon', 'charmander', 'bulbasaur', 'squirtle', 'magikarp', 'psyduck', 'meowth', 'jigglypuff', 'snorlax', 'farfetchd', 'dugtrio', 'mrmime', 'dragonite'];
 
@@ -18,12 +18,12 @@ async function freshDb(factory = new IDBFactory()): Promise<{ db: ExpeditionDb; 
   return { db: await ExpeditionDb.open(factory, 'test'), factory };
 }
 async function reopen(factory: IDBFactory): Promise<ExpeditionDb> { return ExpeditionDb.open(factory, 'test'); }
-async function current(db: ExpeditionDb): Promise<ExpeditionRunV1> {
+async function current(db: ExpeditionDb): Promise<ExpeditionRun> {
   const s = await db.load(IDS);
   if (s.kind !== 'ok' || !s.run) throw new Error('no run: ' + s.kind);
   return s.run;
 }
-async function started(): Promise<{ db: ExpeditionDb; factory: IDBFactory; run: ExpeditionRunV1 }> {
+async function started(): Promise<{ db: ExpeditionDb; factory: IDBFactory; run: ExpeditionRun }> {
   const { db, factory } = await freshDb();
   const r0 = await db.createRun(newRun('run-1', 'seed-1', 'pikachu', 1000), IDS);
   const run = await db.beginMatch(r0.revision, IDS);
@@ -58,8 +58,8 @@ describe('rules', () => {
     const r0 = newRun('r', 's', 'pikachu', 0);
     expect(() => beginMatch(r0, r0.revision - 1)).toThrow(RuleError);
   });
-  it('a loss costs one heart; the last heart ends the run', () => {
-    let r = newRun('r', 's', 'pikachu', 0);
+  it('one life: a loss costs one heart and the last heart ends the run', () => {
+    let r = newRun('r', 's', 'pikachu', 0, 'ironman');
     for (let i = 0; i < START_HEARTS; i++) {
       r = beginMatch(r, r.revision);
       r = applySettlement(r, newProfile(), r.matchId as string, 'loss').run;
@@ -67,6 +67,48 @@ describe('rules', () => {
     expect(r.hearts).toBe(0);
     expect(r.phase).toBe('failed');
     expect(r.losses).toBe(START_HEARTS);
+  });
+  it('chapters: running out of hearts restarts the chapter from its snapshot, keeping permanent captures', () => {
+    let r = newRun('r', 's', 'pikachu', 0), p = newProfile();
+    expect(r.mode).toBe('chapter');
+    r = beginMatch(r, r.revision);
+    let out = applySettlement(r, p, r.matchId as string, 'win');
+    p = out.profile;
+    r = pickReward(out.run, out.run.revision, (out.offered as string[])[0]);
+    expect(r.partyIds).toEqual(['pikachu', 'magikarp']);
+    expect(r.ownedCardIds.length).toBe(1);
+    r = chooseBranch(r, r.revision, 'gold');
+    for (let i = 0; i < START_HEARTS; i++) {
+      r = beginMatch(r, r.revision);
+      out = applySettlement(r, p, r.matchId as string, i === 1 ? 'forfeit' : 'loss');
+      r = out.run;
+      expect(!!out.chapterRestart).toBe(i === START_HEARTS - 1);
+    }
+    expect(r.phase).toBe('map');
+    expect(r.nodeId).toBe('warmup');
+    expect(r.hearts).toBe(START_HEARTS);
+    expect(r.chapterRetries).toBe(1);
+    expect(r.losses).toBe(START_HEARTS);
+    expect(r.partyIds).toEqual(['pikachu']);        // 回到這一章開始時的隊伍
+    expect(r.ownedCardIds).toEqual([]);
+    expect(r.visitedNodeIds).toEqual([]);
+    expect(p.expeditionUnlocked).toEqual(['magikarp']);   // 永久收服不收回
+    // 再贏一次熱身：已經收服過，不會再收、也不會再加入隊伍
+    r = beginMatch(r, r.revision);
+    out = applySettlement(r, p, r.matchId as string, 'win');
+    expect(out.capture).toBeUndefined();
+    expect(out.run.partyIds).toEqual(['pikachu']);
+    expect(validateRun(out.run, IDS).ok).toBe(true);
+  });
+  it('a failed run only exists in one-life mode', () => {
+    const r = newRun('r', 's', 'pikachu', 0);
+    expect(validateRun({ ...r, phase: 'failed', hearts: 0 }, IDS).ok).toBe(false);
+    expect(validateRun({ ...r, mode: 'ironman', phase: 'failed', hearts: 0 }, IDS).ok).toBe(true);
+    expect(validateRun({ ...r, mode: 'hard' }, IDS).ok).toBe(false);
+    expect(validateRun({ ...r, chapter: 5 }, IDS).ok).toBe(false);
+    expect(validateRun({ ...r, checkpoint: { ...r.checkpoint, partyIds: ['missingno'] } }, IDS).ok).toBe(false);
+    const old = validateRun({ ...r, schemaVersion: 1 }, IDS);
+    expect(!old.ok && old.reason).toBe('unsupported');     // 章節制之前的存檔：保留、不能接著玩
   });
   it('a full winning route through the whole first chapter', () => {
     let r = newRun('r', 's', ['pikachu', 'vaporeon'], 0), p = newProfile();
@@ -217,7 +259,7 @@ describe('rules', () => {
   it('validation flags future versions as unsupported, broken shapes as corrupt', () => {
     const r = newRun('r', 's', 'pikachu', 0);
     expect(validateRun(r, IDS).ok).toBe(true);
-    const fut = validateRun({ ...r, schemaVersion: 2 }, IDS);
+    const fut = validateRun({ ...r, schemaVersion: 3 }, IDS);
     expect(!fut.ok && fut.reason).toBe('unsupported');
     const bad = validateRun({ ...r, hearts: 99 }, IDS);
     expect(!bad.ok && bad.reason).toBe('corrupt');
@@ -306,7 +348,7 @@ describe('save file', () => {
       const r = factory.open('test');
       r.onsuccess = () => {
         const t = r.result.transaction('run', 'readwrite');
-        t.objectStore('run').put({ schemaVersion: 1, runId: 'run-1', hearts: 'lots' }, 'current');
+        t.objectStore('run').put({ schemaVersion: 2, runId: 'run-1', hearts: 'lots' }, 'current');
         t.oncomplete = () => { r.result.close(); resolve(); };
         t.onerror = () => reject(t.error);
       };
@@ -329,7 +371,7 @@ describe('save file', () => {
     // 模擬未來版本寫入的檔
     const dump0 = await db.exportAll();
     expect(dump0.run).toBeTruthy();
-    const fut = { ...r, schemaVersion: 2 };
+    const fut = { ...r, schemaVersion: 3 };
     await (db as unknown as { tx: (s: string[], m: IDBTransactionMode, f: (t: IDBTransaction) => Promise<void>) => Promise<void> })
       .tx(['run'], 'readwrite', async (t) => { t.objectStore('run').put(fut, 'current'); });
     const s = await db.load(IDS);
@@ -463,5 +505,33 @@ describe('save file: rewards and captures', () => {
     await expect(tabB.setLead(r1.revision, 'magikarp', IDS)).rejects.toBeInstanceOf(RuleError);
     expect((await current(tabB)).nodeId).toBe('puddle');
     expect(r2.attemptNo).toBe(0);
+  });
+});
+
+describe('save file: chapters', () => {
+  it('the chapter restart is written with the settlement and survives a reload', async () => {
+    const { db, factory } = await freshDb();
+    await db.createRun(newRun('run-1', 'seed-1', 'pikachu', 0), IDS);
+    let last;
+    for (let i = 0; i < START_HEARTS; i++) {
+      const cur = await current(db);
+      const r = await db.beginMatch(cur.revision, IDS);
+      last = await db.settle(r.matchId as string, 'loss', [0, 5], i, IDS);
+    }
+    expect(last && last.settlement.chapterRestart).toBe(true);
+    db.close();
+    const db2 = await reopen(factory);
+    const r2 = await current(db2);
+    expect(r2.nodeId).toBe('warmup');
+    expect(r2.hearts).toBe(START_HEARTS);
+    expect(r2.chapterRetries).toBe(1);
+    const log = await db2.settlementsOf('run-1');
+    expect(log.map((x) => x.matchId)).toEqual(['warmup#1', 'warmup#2', 'warmup#3']);
+    // 重來之後是新的一場（attemptNo 從頭），不會跟之前的結算撞號
+    const again = await db2.beginMatch(r2.revision, IDS);
+    expect(again.matchId).toBe('warmup#1~r1');
+    const won = await db2.settle(again.matchId as string, 'win', [5, 0], 9, IDS);
+    expect(won.duplicate).toBe(false);
+    expect(won.run.nodeId).toBe('fork1');
   });
 });

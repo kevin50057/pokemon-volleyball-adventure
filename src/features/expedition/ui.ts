@@ -11,14 +11,14 @@ import * as match from './adapter';
 import { drawCapture, drawMap, drawPostcard, face, sceneNumbers } from './art';
 import { STATS, cardMods } from './cards';
 import {
-  CAPTURE_CHANCE, CARD_SLOTS, DEX_NODE, EVENTS, FORK_OF, PARTY_MAX, START_HEARTS, STARTERS, STOPS,
+  CAPTURE_CHANCE, CHAPTERS, DEX_NODE, cardSlots, EVENTS, FORK_OF, PARTY_MAX, START_HEARTS, STARTERS, STOPS,
   cardById, matchNode, nodeById, type EventChoice, type MatchNode, type MechId,
 } from './content';
 import { DbError, ExpeditionDb, type LoadState } from './db';
 import { RuleError, eventOf, newRun } from './logic';
 import { newSeed, rngFor } from './rng';
 import { T } from './texts';
-import type { CaptureRecord, ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
+import type { CaptureRecord, ExpeditionRun, MatchResult, ProfileV1, RunMode, SettlementV1 } from './types';
 import { acquireWriter } from './env';
 import { fired as mechFired } from './mech';
 import { CSS, bonusView, button, cardView, charName, el, nodeName, portrait, stage } from './widgets';
@@ -39,6 +39,7 @@ const ui = {
   pausedHidden: false,
   partner: '' as string,
   backup: '' as string,
+  mode: 'chapter' as RunMode,
   tab: 'run' as 'run' | 'dex',
   /** 補給站正在編輯的裝備（還沒存） */
   loadout: null as string[] | null,
@@ -54,20 +55,24 @@ const ui = {
 };
 
 function okState(): Ok | null { return ui.state && ui.state.kind === 'ok' ? ui.state : null; }
-function run(): ExpeditionRunV1 | null { const s = okState(); return s ? s.run : null; }
+function run(): ExpeditionRun | null { const s = okState(); return s ? s.run : null; }
 function profile(): ProfileV1 | null { const s = okState(); return s ? s.profile : null; }
-function setRun(r: ExpeditionRunV1, p?: ProfileV1): void { const s = okState(); if (s) ui.state = { kind: 'ok', profile: p || s.profile, run: r }; }
+function setRun(r: ExpeditionRun, p?: ProfileV1): void { const s = okState(); if (s) ui.state = { kind: 'ok', profile: p || s.profile, run: r }; }
 /** 可以帶出門的夥伴：起始夥伴加上遠征收服過的 */
 function partners(): string[] {
   const p = profile(), got = p ? p.expeditionUnlocked : [];
   return CHARS.ids.filter((id) => STARTERS.indexOf(id) >= 0 || got.indexOf(id) >= 0);
 }
-function runName(r: ExpeditionRunV1): string {
+function runName(r: ExpeditionRun): string {
   return rngFor(r.seed, 'run', 'event', r.rngVersion).pick(T.runNames) + ' #' + r.seed.slice(0, 4).toUpperCase();
 }
 function nums(seed: string): number[] {
   if (ui.numsSeed !== seed) { ui.nums = sceneNumbers(seed); ui.numsSeed = seed; }
   return ui.nums;
+}
+function chapterLabel(r: ExpeditionRun): string {
+  const c = CHAPTERS[r.chapter];
+  return fmt(T.chapterLine, { n: r.chapter + 1, name: (c && T.chapterName[c.id]) || '' });
 }
 function stopNames(): Record<string, string> {
   const names: Record<string, string> = {};
@@ -105,7 +110,7 @@ async function reload(): Promise<void> {
 }
 
 /** 只改 run 的操作：寫進存檔，成功才更新畫面上的狀態 */
-function change(fn: (db: ExpeditionDb, r: ExpeditionRunV1) => Promise<ExpeditionRunV1>): Promise<void> {
+function change(fn: (db: ExpeditionDb, r: ExpeditionRun) => Promise<ExpeditionRun>): Promise<void> {
   return guard(async () => {
     const r = run();
     if (!r || !ui.canWrite) return;
@@ -122,7 +127,7 @@ function startNewRun(): Promise<void> {
     const db = await ensureDb(), list = partners();
     const lead = list.indexOf(ui.partner) >= 0 ? ui.partner : list[0];
     const party = [lead].concat(ui.backup && ui.backup !== lead && list.indexOf(ui.backup) >= 0 ? [ui.backup] : []);
-    await db.createRun(newRun(crypto.randomUUID ? crypto.randomUUID() : newSeed(), newSeed(), party, Date.now()), ids());
+    await db.createRun(newRun(crypto.randomUUID ? crypto.randomUUID() : newSeed(), newSeed(), party, Date.now(), ui.mode), ids());
     ui.note = ''; ui.scene = null;
     await reload();
   });
@@ -166,10 +171,12 @@ function settle(matchId: string, result: MatchResult, scores: [number, number], 
     const out = await db.settle(matchId, result, scores, Date.now(), ids());
     setRun(out.run, out.profile);
     ui.journal = await db.settlementsOf(out.run.runId);
-    const s = out.settlement, h = out.run.hearts;
+    // 章節重來時心已經回滿；這裡要顯示的是「輸掉這一場之後」剩幾顆（0）
+    const s = out.settlement, h = s.chapterRestart ? 0 : out.run.hearts;
     ui.note = s.result === 'win' ? fmt(T.win, { a: s.scores[0], b: s.scores[1] })
       : s.result === 'loss' ? fmt(T.loss, { a: s.scores[0], b: s.scores[1], hearts: h })
         : fmt(T.forfeited, { hearts: h });
+    if (s.chapterRestart) ui.note += '　' + fmt(T.chapterRestart, { chapter: chapterLabel(out.run) });
     ui.interrupted = false; ui.pausedHidden = false;
     ui.scene = s.capture && !out.duplicate ? { rec: s.capture, start: 0 } : null;
   }).then(() => new Promise<void>((resolve) => {
@@ -251,7 +258,7 @@ function errorText(e: DbError): string {
     : e.code === 'version' ? T.errVersion : e.code === 'blocked' ? T.errBlocked : T.errOther;
 }
 
-function partyView(r: ExpeditionRunV1, canSwitch: boolean): HTMLElement {
+function partyView(r: ExpeditionRun, canSwitch: boolean): HTMLElement {
   const wrap = el('div');
   const row = el('div', 'pv-exp-party');
   const picking = canSwitch && ui.swapPick && r.benchIds.indexOf(ui.swapPick) >= 0 ? ui.swapPick : '';
@@ -311,7 +318,7 @@ function nodeCard(node: MatchNode, action: HTMLElement | null): HTMLElement {
 }
 
 /** 夥伴的一句話（同時是這一站的提示），由種子決定講哪一句 */
-function tip(r: ExpeditionRunV1, nodeId: string): HTMLElement | null {
+function tip(r: ExpeditionRun, nodeId: string): HTMLElement | null {
   const lines = T.tips[nodeId];
   if (!lines || !lines.length) return null;
   const box = el('div', 'pv-exp-tip');
@@ -353,6 +360,11 @@ function chooser(body: HTMLElement, again: boolean): void {
     });
     body.appendChild(g);
   };
+  body.appendChild(el('p', '', T.modeTitle));
+  const modes = el('div', 'pv-exp-chars');
+  (['chapter', 'ironman'] as RunMode[]).forEach((m) => modes.appendChild(button(m === 'chapter' ? T.modeChapter : T.modeIronman, () => { ui.mode = m; render(); }, ui.mode === m ? 'on' : '')));
+  body.appendChild(modes);
+  body.appendChild(el('div', 'pv-exp-dim', ui.mode === 'chapter' ? T.modeChapterDesc : T.modeIronmanDesc));
   grid(T.partner, ui.partner, (id) => { ui.partner = id; }, false, '');
   if (PARTY_MAX > 1 && list.length > 1) grid(T.pickBackup, ui.backup, (id) => { ui.backup = id; }, true, ui.partner);
   if (ui.canWrite) body.appendChild(button(again ? T.again : T.newRun, startNewRun, 'main'));
@@ -377,7 +389,7 @@ function dexView(body: HTMLElement): void {
 }
 
 /** 地圖；剛結算完有收服的話，同一塊畫布先播收服演出 */
-function mapStage(body: HTMLElement, r: ExpeditionRunV1): void {
+function mapStage(body: HTMLElement, r: ExpeditionRun): void {
   // 窄螢幕：畫布的邏輯寬度變小（同樣的字在手機上大一點），只標目前這一站
   const compact = window.innerWidth < 560, W2 = compact ? 380 : 520, H2 = compact ? 190 : 200;
   const [c, g] = stage(W2, H2), n = nums(r.seed), sc = ui.scene, names = stopNames();
@@ -393,11 +405,11 @@ function mapStage(body: HTMLElement, r: ExpeditionRunV1): void {
   };
 }
 
-function postcardView(body: HTMLElement, r: ExpeditionRunV1): void {
+function postcardView(body: HTMLElement, r: ExpeditionRun): void {
   const [c, g] = stage(520, 250), cleared = r.phase === 'cleared';
   const lines = journalLines().slice(-5)
     .concat(r.ownedCardIds.length ? [r.ownedCardIds.map((id) => T.cardName[id] || id).join('・')] : [])
-    .concat([fmt(T.pcLosses, { n: r.losses })]);
+    .concat([fmt(T.pcLosses, { n: r.losses }) + (r.mode === 'ironman' ? '・' + T.modeIronman : r.chapterRetries ? '・' + fmt(T.retries, { n: r.chapterRetries }) : '')]);
   const paint = (): void => drawPostcard(g, 520, 250, {
     title: T.postcard, runName: runName(r), headline: cleared ? T.pcCleared : T.pcFailed, cleared,
     party: r.partyIds, visited: r.visitedNodeIds, names: stopNames(), hearts: r.hearts, maxHearts: START_HEARTS,
@@ -463,7 +475,8 @@ function render(): void {
   }
   const node = nodeById(r.nodeId), mn = matchNode(r.nodeId);
   const stop = FORK_OF[r.nodeId] !== undefined ? FORK_OF[r.nodeId] : STOPS.findIndex((s) => s.indexOf(r.nodeId) >= 0);
-  body.appendChild(el('div', 'pv-exp-dim', fmt(T.stopOf, { n: (stop < 0 ? 1 : stop) + 1, total: STOPS.length })));
+  body.appendChild(el('div', 'pv-exp-dim', chapterLabel(r) + '｜' + fmt(T.stopOf, { n: (stop < 0 ? 1 : stop) + 1, total: STOPS.length })
+    + '｜' + (r.mode === 'ironman' ? T.modeIronman : T.modeChapter) + (r.chapterRetries ? '｜' + fmt(T.retries, { n: r.chapterRetries }) : '')));
   body.appendChild(partyView(r, ui.canWrite && r.phase === 'map'));
   const tail = (): void => {
     if (r.ownedCardIds.length && !(node && node.kind === 'supply' && r.phase === 'map')) {
@@ -521,15 +534,15 @@ function render(): void {
   } else if (node && node.kind === 'supply') {
     const lo = ui.loadout || r.equippedCardIds.slice();
     body.appendChild(el('b', '', nodeName(node.id)));
-    body.appendChild(el('p', '', fmt(T.supplyDesc, { max: CARD_SLOTS })));
+    body.appendChild(el('p', '', fmt(T.supplyDesc, { max: cardSlots(r.chapter) })));
     const tp = tip(r, node.id); if (tp) body.appendChild(tp);
     if (!r.ownedCardIds.length) body.appendChild(el('p', 'pv-exp-dim', T.noCards));
     else {
-      body.appendChild(el('div', 'pv-exp-dim', fmt(T.slots, { n: lo.length, max: CARD_SLOTS }) + '｜' + T.tapToEquip));
+      body.appendChild(el('div', 'pv-exp-dim', fmt(T.slots, { n: lo.length, max: cardSlots(r.chapter) }) + '｜' + T.tapToEquip));
       const row = el('div', 'pv-exp-cards');
       r.ownedCardIds.forEach((id) => row.appendChild(cardView(id, () => {
         const i = lo.indexOf(id);
-        if (i >= 0) lo.splice(i, 1); else if (lo.length < CARD_SLOTS) lo.push(id); else return;
+        if (i >= 0) lo.splice(i, 1); else if (lo.length < cardSlots(r.chapter)) lo.push(id); else return;
         ui.loadout = lo; render();
       }, lo.indexOf(id) >= 0)));
       body.appendChild(row);

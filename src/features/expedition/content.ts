@@ -10,7 +10,8 @@ import type { CharacterId } from '../../core/types';
 
 export const START_HEARTS = 3;
 export const PARTY_MAX = 2;
-export const CARD_SLOTS = 2;
+/** 卡槽上限（最後一章的值；每章實際幾格看 CHAPTERS） */
+export const MAX_CARD_SLOTS = 4;
 /** 遠征一開始就能選的夥伴（維護者決定：四隻起始角色加關都御三家） */
 export const STARTERS: readonly CharacterId[] = ['pikachu', 'vaporeon', 'flareon', 'jolteon', 'charmander', 'bulbasaur', 'squirtle'];
 
@@ -101,6 +102,16 @@ export const FIRST_NODE = 'warmup';
 export const STOPS: readonly (readonly string[])[] = [
   ['warmup'], ['puddle', 'gold'], ['event1'], ['lullaby', 'nap'], ['supply'], ['elite'], ['tunnel', 'mirror'], ['camp'], ['boss'],
 ];
+/**
+ * 章節。失敗的單位是「章」：心用完回到這一章的開頭（一命到底模式除外）。
+ * 每章開始時心回滿；卡槽隨章成長（2 → 3 → 4）。目前只有第一章。
+ */
+export interface ChapterDef { id: string; first: string; slots: number; stops: readonly (readonly string[])[] }
+export const CHAPTERS: readonly ChapterDef[] = [
+  { id: 'c1', first: 'warmup', slots: 2, stops: STOPS },
+];
+export function cardSlots(chapter: number): number { const c = CHAPTERS[chapter]; return c ? c.slots : CHAPTERS[0].slots; }
+
 /** 岔路口 → 它分出去的那一站 */
 export const FORK_OF: Readonly<Record<string, number>> = { fork1: 1, fork2: 3, fork3: 6 };
 

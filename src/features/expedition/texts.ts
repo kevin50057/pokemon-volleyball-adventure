@@ -2,6 +2,14 @@
 import { pick } from '../../core/i18n';
 
 const zh = {
+  modeTitle: '玩法',
+  modeChapter: '章節制', modeIronman: '一命到底',
+  modeChapterDesc: '心用完只會回到這一章的開頭：隊伍、卡片回到這一章開始時的樣子，心回滿。已經收服的夥伴不會被收回。',
+  modeIronmanDesc: '心用完整輪就結束。給想挑戰的人。',
+  chapterLine: '第 {n} 章：{name}',
+  chapterName: { c1: '道館巡禮' } as Record<string, string>,
+  retries: '重來 {n} 次',
+  chapterRestart: '心用完了，回到{chapter}的開頭（隊伍和卡片回到這一章開始時的樣子，心回滿）。',
   menuBtn: '遠征 β',
   title: '關都遠征 β',
   loading: '讀取存檔中…',
@@ -41,7 +49,7 @@ const zh = {
   errOther: '存檔時發生錯誤，進度沒有存進去。',
   tryAgain: '再試一次',
   corrupt: '遠征存檔壞掉了（{detail}）。原始資料還在，可以先匯出保存。',
-  unsupported: '遠征存檔是較新版本或不同內容版本做的（{detail}），這個版本不能讀，原檔保留不動。',
+  unsupported: '遠征存檔是其他版本的遊戲做的（{detail}），這個版本不能接著玩，原檔保留不動。',
   exportBtn: '匯出存檔',
   moveAside: '把這個存檔另存起來，開新的一輪',
   moveAsideConfirm: '這個存檔會原封不動另存在這個瀏覽器裡（可以再匯出），然後開新的一輪。確定嗎？',
@@ -138,6 +146,14 @@ const zh = {
 export type ExpTexts = typeof zh;
 
 const en: ExpTexts = {
+  modeTitle: 'Mode',
+  modeChapter: 'Chapters', modeIronman: 'One Life',
+  modeChapterDesc: 'Running out of hearts only sends you back to the start of the chapter: party and cards return to how they were then, and hearts refill. Partners you caught stay caught.',
+  modeIronmanDesc: 'Run out of hearts and the whole run is over. For a challenge.',
+  chapterLine: 'Chapter {n}: {name}',
+  chapterName: { c1: 'Gym Tour' },
+  retries: '{n} retries',
+  chapterRestart: 'Out of hearts: back to the start of {chapter} (party and cards as they were when the chapter began, hearts refilled).',
   menuBtn: 'Expedition β',
   title: 'Kanto Expedition β',
   loading: 'Loading save…',
@@ -177,7 +193,7 @@ const en: ExpTexts = {
   errOther: 'Saving failed. Progress was not saved.',
   tryAgain: 'Try again',
   corrupt: 'The expedition save is damaged ({detail}). The original data is kept; you can export it first.',
-  unsupported: 'The expedition save was made by a newer or different content version ({detail}). It is kept untouched and cannot be read here.',
+  unsupported: 'The expedition save was made by a different version of the game ({detail}). It is kept untouched and cannot be continued here.',
   exportBtn: 'Export save',
   moveAside: 'Set this save aside and start a new run',
   moveAsideConfirm: 'This save will be kept as-is in this browser (you can still export it), then a new run starts. Continue?',
@@ -272,6 +288,14 @@ const en: ExpTexts = {
 };
 
 const ko: ExpTexts = {
+  modeTitle: '모드',
+  modeChapter: '챕터제', modeIronman: '목숨 하나',
+  modeChapterDesc: '하트를 다 쓰면 이 챕터의 처음으로만 돌아가요. 파티와 카드는 챕터 시작 때로 돌아가고 하트는 가득 차요. 포획한 파트너는 그대로예요.',
+  modeIronmanDesc: '하트를 다 쓰면 원정 전체가 끝나요. 도전하고 싶은 분께.',
+  chapterLine: '{n}장: {name}',
+  chapterName: { c1: '체육관 순례' },
+  retries: '{n}번 재도전',
+  chapterRestart: '하트를 다 썼어요. {chapter}의 처음으로 돌아가요(파티와 카드는 챕터 시작 때로, 하트는 가득).',
   menuBtn: '원정 β',
   title: '관동 원정 β',
   loading: '저장 데이터를 읽는 중…',
@@ -311,7 +335,7 @@ const ko: ExpTexts = {
   errOther: '저장에 실패해서 진행 상황이 저장되지 않았어요.',
   tryAgain: '다시 시도',
   corrupt: '원정 저장 데이터가 손상됐어요({detail}). 원본은 남아 있으니 먼저 내보낼 수 있어요.',
-  unsupported: '원정 저장 데이터가 더 새로운 버전이나 다른 콘텐츠 버전에서 만들어졌어요({detail}). 원본은 그대로 두고, 여기서는 읽을 수 없어요.',
+  unsupported: '원정 저장 데이터가 다른 버전의 게임에서 만들어졌어요({detail}). 원본은 그대로 두고, 여기서는 이어서 할 수 없어요.',
   exportBtn: '저장 데이터 내보내기',
   moveAside: '이 저장 데이터는 따로 보관하고 새 원정 시작',
   moveAsideConfirm: '이 데이터는 이 브라우저에 그대로 보관되고(나중에 내보내기 가능), 새 원정이 시작돼요. 계속할까요?',

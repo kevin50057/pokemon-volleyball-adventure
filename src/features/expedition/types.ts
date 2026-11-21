@@ -5,13 +5,26 @@
  * 不認得的版本一律當成「不支援」，保留原檔、唯讀，不會被覆寫。
  */
 export const SCHEMA_VERSION = 1;
+/** 一輪（run）的存檔版本：2 = 章節制（每章有起點快照、心用完重來這一章） */
+export const RUN_SCHEMA = 2;
 /** 亂數演算法版本：改了 rng.ts 的算法就要加一（同 seed 才會得到同樣的掉落） */
 export const RNG_VERSION = 1;
 /** 內容版本：路線、對手、勝分、卡牌等設定改了就要換 */
-export const CONTENT_VERSION = 'c1-2';
+export const CONTENT_VERSION = 'c1-3';
 
 export type Phase = 'map' | 'active' | 'reward' | 'cleared' | 'failed';
 export type MatchResult = 'win' | 'loss' | 'forfeit';
+/** chapter：心用完只重來這一章（預設）；ironman：一命到底，心用完整輪結束 */
+export type RunMode = 'chapter' | 'ironman';
+
+/** 每一章開始時的樣子；章節制心用完就回到這裡 */
+export interface Checkpoint {
+  partyIds: string[];
+  benchIds: string[];
+  ownedCardIds: string[];
+  equippedCardIds: string[];
+  visitedNodeIds: string[];
+}
 
 export interface ProfileV1 {
   schemaVersion: 1;
@@ -22,8 +35,14 @@ export interface ProfileV1 {
   importedLegacyVersion?: string;
 }
 
-export interface ExpeditionRunV1 {
-  schemaVersion: 1;
+export interface ExpeditionRun {
+  schemaVersion: 2;
+  mode: RunMode;
+  /** 第幾章（0 起算，對應 content.ts 的 CHAPTERS） */
+  chapter: number;
+  /** 這一輪總共重來過幾次章節 */
+  chapterRetries: number;
+  checkpoint: Checkpoint;
   runId: string;
   seed: string;
   rngVersion: number;
@@ -75,6 +94,8 @@ export interface SettlementV1 {
   /** 上場的夥伴（日誌用） */
   lead?: string;
   capture?: CaptureRecord;
+  /** 這一場輸掉後心用完，回到這一章的開頭 */
+  chapterRestart?: boolean;
   /** 這一場給的三選一；picked 是玩家選的（null = 略過，undefined = 還沒選） */
   offered?: string[];
   picked?: string | null;

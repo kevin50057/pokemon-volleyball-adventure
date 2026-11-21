@@ -11,7 +11,7 @@ import {
   makeSettlement, newProfile, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
 } from './logic';
 import type { EventChoice } from './content';
-import type { ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
+import type { ExpeditionRun, MatchResult, ProfileV1, SettlementV1 } from './types';
 
 export const DB_NAME = 'pva-expedition';
 const DB_VERSION = 1;
@@ -42,7 +42,7 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 }
 
 export type LoadState =
-  | { kind: 'ok'; profile: ProfileV1; run: ExpeditionRunV1 | null }
+  | { kind: 'ok'; profile: ProfileV1; run: ExpeditionRun | null }
   | { kind: 'unsupported' | 'corrupt'; what: 'run' | 'profile'; detail: string; raw: unknown };
 
 /** 測試用：在結算寫到一半時模擬當機 */
@@ -106,7 +106,7 @@ export class ExpeditionDb {
   }
 
   /** 開新的一輪。已經有一輪還沒結束（不是 cleared／failed）就拒絕。 */
-  async createRun(run: ExpeditionRunV1, knownIds: readonly string[]): Promise<ExpeditionRunV1> {
+  async createRun(run: ExpeditionRun, knownIds: readonly string[]): Promise<ExpeditionRun> {
     return this.tx([S_PROFILE, S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN), ps = t.objectStore(S_PROFILE);
       const old = await req(rs.get(KEY));
@@ -122,7 +122,7 @@ export class ExpeditionDb {
   }
 
   /** 入場前呼叫：把 matchId 寫進存檔（重整後回來是同一個 matchId）。 */
-  async beginMatch(rev: number, knownIds: readonly string[]): Promise<ExpeditionRunV1> {
+  async beginMatch(rev: number, knownIds: readonly string[]): Promise<ExpeditionRun> {
     return this.tx([S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN);
       const run = this.must(await req(rs.get(KEY)), knownIds);
@@ -136,7 +136,7 @@ export class ExpeditionDb {
    * 結算一場。同一個 matchId 已經結算過就直接回傳那一筆（duplicate: true），不再改任何東西。
    * profile、run、settlement 在同一個 transaction 裡寫。
    */
-  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], faults: TestFaults = {}): Promise<{ run: ExpeditionRunV1; profile: ProfileV1; settlement: SettlementV1; duplicate: boolean }> {
+  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], faults: TestFaults = {}): Promise<{ run: ExpeditionRun; profile: ProfileV1; settlement: SettlementV1; duplicate: boolean }> {
     return this.tx([S_PROFILE, S_RUN, S_SETTLE], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE), ps = t.objectStore(S_PROFILE);
       const run = this.must(await req(rs.get(KEY)), knownIds);
@@ -155,7 +155,7 @@ export class ExpeditionDb {
   }
 
   /** 只改 run 的變更（選路、換夥伴、離開補給站）：讀 → 規則檢查 revision → 寫 */
-  private change(knownIds: readonly string[], fn: (run: ExpeditionRunV1) => ExpeditionRunV1): Promise<ExpeditionRunV1> {
+  private change(knownIds: readonly string[], fn: (run: ExpeditionRun) => ExpeditionRun): Promise<ExpeditionRun> {
     return this.tx([S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN);
       const run = this.must(await req(rs.get(KEY)), knownIds);
@@ -164,14 +164,14 @@ export class ExpeditionDb {
       return next;
     });
   }
-  chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleBranch(r, rev, option)); }
-  leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
-  setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
-  swapIn(rev: number, benchId: string, out: string | null, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleSwap(r, rev, benchId, out)); }
-  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice)); }
+  chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleBranch(r, rev, option)); }
+  leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
+  setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
+  swapIn(rev: number, benchId: string, out: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSwap(r, rev, benchId, out)); }
+  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice)); }
 
   /** 三選一：選卡（或略過）和結算紀錄上的 picked 在同一個 transaction 裡寫 */
-  async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRunV1> {
+  async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> {
     return this.tx([S_RUN, S_SETTLE], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE);
       const run = this.must(await req(rs.get(KEY)), knownIds);
@@ -228,7 +228,7 @@ export class ExpeditionDb {
     return v.value;
   }
 
-  private must(raw: unknown, knownIds: readonly string[]): ExpeditionRunV1 {
+  private must(raw: unknown, knownIds: readonly string[]): ExpeditionRun {
     if (raw === undefined) throw new RuleError('phase', 'no run');
     const v = validateRun(raw, knownIds);
     if (!v.ok) throw new RuleError('invalid', 'run is ' + v.reason + ': ' + v.detail);

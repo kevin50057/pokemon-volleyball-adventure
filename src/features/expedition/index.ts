@@ -5,7 +5,7 @@
  * 不註冊掛勾、不開 IndexedDB、不改畫面，其他模式的行為跟沒有這個模組完全一樣。
  *
  * 檔案分工：
- *   types.ts    資料契約（ProfileV1、ExpeditionRunV1、SettlementV1）
+ *   types.ts    資料契約（ProfileV1、ExpeditionRun、SettlementV1）
  *   content.ts  路線、場地規則、卡牌、羈絆（全部是資料）
  *   cards.ts    卡牌與羈絆的計算
  *   field.ts    比賽中的修飾：場地規則、卡牌倍率、首領、場上顯示

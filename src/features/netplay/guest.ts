@@ -145,7 +145,8 @@ function setPl(p: Player, a: unknown): void {
 
 function moveSpeed(ch: string): number {
   const tu: Record<string, number> = (svc.abilities && svc.abilities.tuning) || {};
-  return 6 + (ch === 'jolteon' ? (tu.joltSpeed || 0) : ch === 'mewtwo' ? (tu.mewtwoSpeed || 0) : 0);
+  const starter = (ch === 'charmander' || ch === 'bulbasaur' || ch === 'squirtle') ? (tu[ch + 'Move'] || 1) : 1;
+  return 6 * starter + (ch === 'jolteon' ? (tu.joltSpeed || 0) : ch === 'mewtwo' ? (tu.mewtwoSpeed || 0) : 0);
 }
 
 const SOUND_KEYS: Array<keyof PlayerSound> = ['pipikachu', 'pika', 'chu', 'flap'];

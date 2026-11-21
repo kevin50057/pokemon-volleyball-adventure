@@ -5,6 +5,7 @@ import type { Controller, Player } from '../../core/types';
 import { processDebuffs } from './debuffs';
 import { draw } from './overlay';
 import { leekReach, processAbility, processBurn } from './skills';
+import { shellMark, shellRestore, starterMotion } from './starters';
 import { pk, resetAll, rt } from './state';
 
 export function tick(ctrl: Controller): void {
@@ -29,8 +30,14 @@ export function tick(ctrl: Controller): void {
     [p1, p2].forEach(function (p) {
       if (p.isCollisionWithBallHappened && ball.isPowerHit) rt.ballMem.lastPowerSide = pk(p);
     });
+    const shell1 = shellMark(p1), shell2 = shellMark(p2);
     processAbility(p1, p2, ball, ctrl.keyboardArray[0], 'p1', ctrl);
     processAbility(p2, p1, ball, ctrl.keyboardArray[1], 'p2', ctrl);
+    // 御三家：傑尼龜的硬殼先還原被推開的位置，再算走路／撲救／跳躍的倍率
+    shellRestore(p1, shell1, rt.state.p1);
+    shellRestore(p2, shell2, rt.state.p2);
+    starterMotion(p1);
+    starterMotion(p2);
     processBurn(p1, ball, 'p1');
     processBurn(p2, ball, 'p2');
     processDebuffs(p1, ctrl.keyboardArray[0], 'p1');

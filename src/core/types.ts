@@ -13,12 +13,13 @@ import type { Texture } from '@pixi/core';
 export type CharacterId =
   | 'pikachu' | 'bird' | 'vaporeon' | 'flareon' | 'jolteon' | 'gengar' | 'meowth'
   | 'snorlax' | 'mewtwo' | 'electrode' | 'wobbuffet' | 'ditto' | 'mrmime' | 'dugtrio'
-  | 'farfetchd' | 'psyduck' | 'magikarp' | 'jigglypuff' | 'dragonite' | 'mew';
+  | 'farfetchd' | 'psyduck' | 'magikarp' | 'jigglypuff' | 'dragonite' | 'mew'
+  | 'charmander' | 'bulbasaur' | 'squirtle';
 
 export const CHARACTER_IDS: readonly CharacterId[] = [
   'pikachu', 'bird', 'vaporeon', 'flareon', 'jolteon', 'gengar', 'meowth', 'snorlax',
   'mewtwo', 'electrode', 'wobbuffet', 'ditto', 'mrmime', 'dugtrio', 'farfetchd', 'psyduck',
-  'magikarp', 'jigglypuff', 'dragonite', 'mew',
+  'magikarp', 'jigglypuff', 'dragonite', 'mew', 'charmander', 'bulbasaur', 'squirtle',
 ];
 
 /**
@@ -60,6 +61,11 @@ export interface Player {
   dashTrailY: number[];
   /** 耿鬼空間偷渡：可以越過網子移動。 */
   pvNoClamp?: boolean;
+  /** 擊球判定左右多寬幾 px（妙蛙種子的短藤鞭）；沒設就是 0。 */
+  pvReachX?: number;
+  /** 走路／撲救速度倍率（御三家）；沒設就是 1。 */
+  pvMoveMult?: number;
+  pvDiveMult?: number;
   /** 這一幀「沒碰到身體但算擊球」（大蔥鴨的大蔥）。給特效和連線看。 */
   pvHit?: boolean;
   initializeForNewRound(): void;

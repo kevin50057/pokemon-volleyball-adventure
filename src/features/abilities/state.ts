@@ -91,6 +91,8 @@ export function resetAll(ctrl: Controller): void {
   (['player1', 'player2'] as const).forEach(function (k) {
     const p = ctrl.physics[k];
     p.pvNoClamp = false;
+    p.pvReachX = 0;
+    p.pvMoveMult = p.pvDiveMult = undefined;
     const m = rt.meta[pk(p)];
     if (m.origin === 'ditto') { p.character = 'ditto'; m.transformedTo = null; }
   });

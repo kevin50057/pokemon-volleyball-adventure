@@ -128,6 +128,16 @@ const SHAPES: Record<string, ShapeFn> = {
       g.quadraticCurveTo(C + ox, C - 3, C - 10 + ox, C - 13); g.fill();
     }
   },
+  // 草：往外飛的葉片
+  '草': function (g, main, light) {
+    for (let i = 0; i < 6; i++) {
+      const a = i * Math.PI / 3 + 0.3;
+      g.fillStyle = main; drop(g, C, C, a, 5, 13, 4.5);
+      g.fillStyle = light; drop(g, C, C, a, 7, 8, 1.6);
+    }
+    g.fillStyle = main; circle(g, C, C, 5);
+    g.fillStyle = light; circle(g, C - 1, C - 1, 2.5);
+  },
   // 普：蓬鬆的撞擊煙團
   '普': function (g, main, light) {
     g.fillStyle = main;

@@ -30,6 +30,9 @@ const TEXTURES = {
   JIGGLYPUFF: (i: number, j: number): string => `jigglypuff/jigglypuff_${i}_${j}.png`,
   DRAGONITE: (i: number, j: number): string => `dragonite/dragonite_${i}_${j}.png`,
   MEW: (i: number, j: number): string => `mew/mew_${i}_${j}.png`,
+  CHARMANDER: (i: number, j: number): string => `charmander/charmander_${i}_${j}.png`,
+  BULBASAUR: (i: number, j: number): string => `bulbasaur/bulbasaur_${i}_${j}.png`,
+  SQUIRTLE: (i: number, j: number): string => `squirtle/squirtle_${i}_${j}.png`,
   BALL: (s: number | string): string => `ball/ball_${s}.png`,
   NUMBER: (n: number): string => `number/number_${n}.png`,
 
@@ -115,6 +118,9 @@ export const ASSETS_PATH = {
   JIGGLYPUFF_SHEET: IMAGES_URL + 'jigglypuff_sheet.json',
   DRAGONITE_SHEET: IMAGES_URL + 'dragonite_sheet.json',
   MEW_SHEET: IMAGES_URL + 'mew_sheet.json',
+  CHARMANDER_SHEET: IMAGES_URL + 'charmander_sheet.json',
+  BULBASAUR_SHEET: IMAGES_URL + 'bulbasaur_sheet.json',
+  SQUIRTLE_SHEET: IMAGES_URL + 'squirtle_sheet.json',
   TEXTURES,
   SOUNDS,
 };

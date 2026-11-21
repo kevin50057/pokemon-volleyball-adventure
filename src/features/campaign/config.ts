@@ -26,7 +26,7 @@ export interface Diff { move: number; spike: number; lapse: number }
 // ============================================================
 export const CFG = {
   hearts: 3,
-  starters: ['pikachu', 'vaporeon', 'flareon', 'jolteon'],
+  starters: ['pikachu', 'vaporeon', 'flareon', 'jolteon', 'charmander', 'bulbasaur', 'squirtle'],
   zones: [
     { name: '新手草原', tint: 0xFFFFFF, score: 5, fixed: ['magikarp', 'psyduck', 'snorlax'], c1: '#49b36a', c2: '#2a7350' },
     { name: '道館連戰', tint: 0xFFC79E, score: 5, pool: ['dugtrio', 'jigglypuff', 'wobbuffet', 'mrmime', 'meowth'], draw: 3, c1: '#e6933f', c2: '#a8502c' },

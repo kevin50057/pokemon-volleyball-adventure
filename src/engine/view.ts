@@ -4,7 +4,7 @@
  * 有些程式碼是逆向工程原作機器碼得到的，註解裡標了參考的函式位址，例如 FUN_00405d50。
  *
  * 這個專案加的：
- *  - 20 隻角色的動作圖（playerTextureArrays），角色換了就換掉 AnimatedSprite 的 textures。
+ *  - 23 隻角色的動作圖（playerTextureArrays），角色換了就換掉 AnimatedSprite 的 textures。
  *  - 水伊布衝刺的拖影（p1Trails、p2Trails，各 2 個半透明 sprite）。
  *  - 畫完角色和球之後呼叫 `hooks.drawBall`（舊版 window._pvDrawBall）。
  */
@@ -402,6 +402,9 @@ export class GameView implements IGameView {
       jigglypuff: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.JIGGLYPUFF_SHEET), TEXTURES.JIGGLYPUFF),
       dragonite: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.DRAGONITE_SHEET), TEXTURES.DRAGONITE),
       mew: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.MEW_SHEET), TEXTURES.MEW),
+      charmander: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.CHARMANDER_SHEET), TEXTURES.CHARMANDER),
+      bulbasaur: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.BULBASAUR_SHEET), TEXTURES.BULBASAUR),
+      squirtle: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.SQUIRTLE_SHEET), TEXTURES.SQUIRTLE),
     };
     this.player1Character = 'pikachu';
     this.player2Character = 'pikachu';

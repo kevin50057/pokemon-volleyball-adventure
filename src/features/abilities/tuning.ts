@@ -51,6 +51,13 @@ export const TUNING = {
   redGyaradosChance: 0.1, redGyaradosFrames: 150, redGyaradosVx: 30, redGyaradosStun: 10,
   // 夢幻
   mewShieldCD: 500, mewTeleport: 110, mewTeleportCD: 150, mewTeleportAI: 0.005, mewLift: 15, mewChargeFrames: 45, mewBlastVx: 28,
+  // 關都御三家（一階，以皮卡丘為 1）
+  // 小火龍：走路倍率、撲救距離倍率、「網前」的範圍（離網幾 px 以內，半場寬 216 的 1/3）、網前殺球的球速倍率
+  charmanderMove: 1.03, charmanderDive: 1.10, charmanderNetZone: 72, charmanderNetSpike: 1.08,
+  // 妙蛙種子：走路、跳躍高度倍率、擊球判定左右加寬幾 px、飛葉過網時水平速度減多少、過網後每幾幀多加 1 重力
+  bulbasaurMove: 0.95, bulbasaurJump: 0.95, bulbasaurReach: 5, leafDrag: 1, leafGravEvery: 3,
+  // 傑尼龜：走路、跳躍高度、殺球球速、撲救距離倍率、倒地少躺幾幀、硬殼（1 開 0 關）
+  squirtleMove: 1.05, squirtleJump: 0.92, squirtleSpike: 0.95, squirtleDive: 1.15, squirtleGetup: 2, squirtleShell: 1,
   // 電腦防卡死：球在自己場上超過幾幀就強制起跳殺球
   antiStall: 100,
 };

@@ -4,13 +4,14 @@
 import type { CharacterId } from '../../core/types';
 
 /** 屬性（中文單字，跟舊版一樣直接當鍵用）。 */
-export type PokeType = '電' | '水' | '火' | '鬼' | '普' | '超' | '地' | '妖' | '龍';
+export type PokeType = '電' | '水' | '火' | '鬼' | '普' | '超' | '地' | '妖' | '龍' | '草';
 
 /** 技能名稱（技能系統用來查表）。 */
 export type AbilityName =
   | 'static' | 'flying' | 'acidArmor' | 'fireSmash' | 'emWave' | 'ghostPhase' | 'payday'
   | 'bellyBounce' | 'psychic' | 'fakeBall' | 'counter' | 'transform' | 'barrier' | 'dig'
-  | 'leekBoomerang' | 'headache' | 'splash' | 'sing' | 'outrage' | 'psychicShield';
+  | 'leekBoomerang' | 'headache' | 'splash' | 'sing' | 'outrage' | 'psychicShield'
+  | 'smallFlame' | 'vineWhip' | 'shellSlide';
 
 export interface CharDef {
   id: CharacterId;
@@ -67,6 +68,13 @@ const SOURCE: CharSource[] = [
     skill: '逆鱗', desc: '殺球就暴走 3 秒、移動變快，這一球算第一層；暴走中每次殺球再疊一層，最多 3 層（連殺 3 球就滿），一層比一層砸得重。暴走結束會混亂 1 秒（左右顛倒）。' },
   { id: 'mew',        name: '夢幻',     type: '超', ability: 'psychicShield',
     skill: '瞬間移動＋念力護盾', desc: '神獸。連按兩下方向鍵瞬間移動：球會落在自己場上就往落點瞬移（有距離上限，每 6 秒一次）。身邊有粉紅光環時，快落地的球一定會被念力托起（每 20 秒一次）；趁球還帶著光環殺球就是念力彈，又快又準。' },
+  // 關都御三家（一階）：跟皮卡丘只差 5%～15%，進化後才會有大招
+  { id: 'charmander', name: '小火龍',   type: '火', ability: 'smallFlame',
+    skill: '小火苗＋衝刺', desc: '移動稍快。在網前（靠網 1/3）殺球，球速快 8%；撲救滑得比較遠。' },
+  { id: 'bulbasaur',  name: '妙蛙種子', type: '草', ability: 'vineWhip',
+    skill: '短藤鞭＋飛葉', desc: '移動和跳躍稍慢，但身體左右的擊球範圍比較寬，擦邊球也接得到。不按方向鍵直接殺球是飛葉：過網後會慢下來、早一點落地。' },
+  { id: 'squirtle',   name: '傑尼龜',   type: '水', ability: 'shellSlide',
+    skill: '縮殼滑行＋硬殼', desc: '地上跑得快、跳得比較低，殺球稍弱。撲救滑得很遠，倒地後起身快。硬殼：不會被對手的技能震飛或推開。' },
 ];
 
 // 屬性 → 擊球光的顏色（殺球閃光、球的殘影、角色選擇的屬性標籤都用這個）
@@ -80,6 +88,7 @@ const TYPE_COLORS: Record<PokeType, string> = {
   '地': '#D9A55B',
   '妖': '#FF9FE0',
   '龍': '#5B6CFF',
+  '草': '#5FD35F',
 };
 
 const LIST: CharDef[] = SOURCE.map((c) => ({ ...c, color: TYPE_COLORS[c.type] || '#FFFFFF' }));
@@ -87,7 +96,7 @@ const LIST: CharDef[] = SOURCE.map((c) => ({ ...c, color: TYPE_COLORS[c.type] ||
 /** 用 CharacterId 查一定有；用任意字串查（例如連線收到的、存檔讀出來的）可能是 undefined。 */
 export type CharById = Record<CharacterId, CharDef> & { readonly [id: string]: CharDef | undefined };
 
-const BY_ID = {} as CharById;   // 下一行逐一填滿 20 隻，所以這裡先轉型
+const BY_ID = {} as CharById;   // 下一行逐一填滿每一隻，所以這裡先轉型
 LIST.forEach((c) => { (BY_ID as Record<string, CharDef>)[c.id] = c; });
 
 export interface CharsData {

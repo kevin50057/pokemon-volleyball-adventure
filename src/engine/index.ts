@@ -108,6 +108,9 @@ export function startEngine(): void {
   loader.add(ASSETS_PATH.JIGGLYPUFF_SHEET);
   loader.add(ASSETS_PATH.DRAGONITE_SHEET);
   loader.add(ASSETS_PATH.MEW_SHEET);
+  loader.add(ASSETS_PATH.CHARMANDER_SHEET);
+  loader.add(ASSETS_PATH.BULBASAUR_SHEET);
+  loader.add(ASSETS_PATH.SQUIRTLE_SHEET);
   for (const prop in ASSETS_PATH.SOUNDS) {
     loader.add(ASSETS_PATH.SOUNDS[prop]);
   }

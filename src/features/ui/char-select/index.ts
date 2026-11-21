@@ -24,8 +24,8 @@ function saved(n: Side): CharacterId | null {
   return isChar(v) ? v : null;
 }
 // ---------- 遠征版：全遊戲鎖角色 ----------
-// 解鎖狀態以闖關模式的存檔為準（campaign 的 owned）；沒有闖關模組時只開放起始 4 隻
-const STARTERS = ['pikachu', 'vaporeon', 'flareon', 'jolteon'];
+// 解鎖狀態以闖關模式的存檔為準（campaign 的 owned）；沒有闖關模組時只開放起始角色（跟 campaign/config.ts 的 starters 一樣）
+const STARTERS = ['pikachu', 'vaporeon', 'flareon', 'jolteon', 'charmander', 'bulbasaur', 'squirtle'];
 function unlocked(id: string): boolean {
   const PC = svc.campaign;
   return PC ? PC.owned(id) : STARTERS.indexOf(id) >= 0;

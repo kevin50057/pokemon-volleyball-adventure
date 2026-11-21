@@ -183,6 +183,12 @@ export class Player implements IPlayer {
   declare dashTrailY: number[];
   /** 耿鬼空間偷渡：可以越過網子移動（技能系統設定；初始為 undefined） */
   declare pvNoClamp?: boolean;
+  /** 外掛加寬的左右擊球判定（妙蛙種子）。 */
+  declare pvReachX?: number;
+  /** 外掛調的走路／撲救速度倍率（御三家；沒設就是 1），以及小數部分的累加器。 */
+  declare pvMoveMult?: number;
+  declare pvDiveMult?: number;
+  declare pvMoveAcc?: number;
   /** 這一幀「沒碰到身體但算擊球」（技能系統設定；初始為 undefined） */
   declare pvHit?: boolean;
 
@@ -351,6 +357,7 @@ function physicsEngine(player1: Player, player2: Player, ball: Ball, userInputAr
       ball,
       player.x,
       player.y,
+      player.pvReachX || 0,
     );
     if (isHappened === true) {
       if (player.isCollisionWithBallHappened === false) {
@@ -376,9 +383,10 @@ function physicsEngine(player1: Player, player2: Player, ball: Ball, userInputAr
  * FUN_00403070
  * 球和角色有沒有碰撞
  */
-function isCollisionBetweenBallAndPlayerHappened(ball: Ball, playerX: number, playerY: number): boolean {
+function isCollisionBetweenBallAndPlayerHappened(ball: Ball, playerX: number, playerY: number, extraX = 0): boolean {
   let diff = ball.x - playerX;
-  if (Math.abs(diff) <= PLAYER_HALF_LENGTH) {
+  // extraX：外掛加寬的左右判定（妙蛙種子），原作是 0
+  if (Math.abs(diff) <= PLAYER_HALF_LENGTH + extraX) {
     diff = ball.y - playerY;
     if (Math.abs(diff) <= PLAYER_HALF_LENGTH) {
       return true;
@@ -506,6 +514,16 @@ function processPlayerMovementAndSetPlayerPosition(
       // player.state === 3，角色正在撲救……
       playerVelocityX = player.divingDirection * 8;
     }
+  }
+  // 外掛的速度倍率（御三家）：位置維持整數，小數部分累加到滿 1px 才多走
+  const speedMult = player.state < 3 ? player.pvMoveMult : player.state === 3 ? player.pvDiveMult : undefined;
+  if (speedMult !== undefined && speedMult !== 1 && playerVelocityX !== 0) {
+    const acc = (player.pvMoveAcc || 0) + Math.abs(playerVelocityX) * (speedMult - 1);
+    let whole = acc < 0 ? Math.ceil(acc) : Math.floor(acc);
+    player.pvMoveAcc = acc - whole;
+    // 撲救多滑的部分不會滑過球（滑過頭反而接不到）
+    if (player.state === 3 && whole > 0) whole = Math.max(0, Math.min(whole, (ball.x - player.x) * player.divingDirection - 8));
+    playerVelocityX += (playerVelocityX < 0 ? -1 : 1) * whole;
   }
 
   // 水伊布衝刺中：用衝刺速度取代一般移動，並記錄拖影位置

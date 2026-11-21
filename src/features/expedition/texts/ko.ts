@@ -2,6 +2,9 @@
 import type { ExpTexts } from './zh';
 
 export const ko: ExpTexts = {
+  formName: { charmeleon: '리자드', charizard: '리자몽', ivysaur: '이상해풀', venusaur: '이상해꽃', wartortle: '어니부기', blastoise: '거북왕' },
+  evolveTo: '{from}이(가) {to}(으)로 진화했다!', evolveStage: '{n}단계', evolveNext: '친밀도 {n}점에 {to}(으)로 진화',
+  stage2Desc: { charmander: '리자드: 네트 앞 스파이크가 더 빠르고, 네트 앞 범위도 넓어요.', bulbasaur: '이상해풀: 공을 치는 범위가 넓고, 잎이 네트를 넘은 뒤 더 빨리 떨어져요.', squirtle: '어니부기: 다이빙이 더 멀고, 넘어져도 더 빨리 일어나요.' },
   heavyWarn: '공이 무거워져요', heavyOn: '중력장: 공이 무거워졌어요',
   flipHeavyWarn: '공이 무거워져요', flipLightWarn: '공이 가벼워져요', flipHeavy: '공이 무거워졌어요', flipLight: '공이 가벼워졌어요',
   stasisWarn: '염동력…', stasisHold: '염동 정지', stasisFizzle: '염동력 실패',
@@ -12,7 +15,7 @@ export const ko: ExpTexts = {
   awakenPop: { pikachu: '10만볼트!', vaporeon: '물의파동', flareon: '연소!', jolteon: '고속이동', charmander: '활공', bulbasaur: '솔라빔!', squirtle: '하이드로캐논!', magikarp: '진화!', umbreon: '달빛', snorlax: '배 트램펄린', jigglypuff: '누르기!', dragonite: '침착', gengar: '저주!', electrode: '정밀 폭파', wobbuffet: '미러코트!', mrmime: '얼음 배리어', dugtrio: '모래지옥', farfetchd: '메테오어썰트!', psyduck: '염동 리시브', bird: '뇌운!' },
   awakenName: {
     pikachu: '라이츄의 힘「10만볼트」', vaporeon: '각성「물의파동」', flareon: '각성「연소」', jolteon: '각성「고속이동」',
-    charmander: '리자몽의 힘「활공」', bulbasaur: '이상해꽃의 힘「솔라빔」', squirtle: '거북왕의 힘「하이드로캐논」', magikarp: '진짜 진화: 갸라도스',
+    charmander: '리자몽「활공」', bulbasaur: '이상해꽃「솔라빔」', squirtle: '거북왕「하이드로캐논」', magikarp: '진짜 진화: 갸라도스',
     umbreon: '각성「달빛」', snorlax: '각성「배 트램펄린」', jigglypuff: '푸크린의 힘「누르기」', dragonite: '각성「침착」',
     psyduck: '골덕의 힘「염동 리시브」', meowth: '페르시온의 힘「고양이돈받기」', bird: '각성「뇌운」', mew: '각성 (오라만)', mewtwo: '각성 (오라만)',
     gengar: '각성「저주」', electrode: '각성「정밀 폭파」', wobbuffet: '각성「미러코트」', mrmime: '마임꽁꽁의 힘「얼음 배리어」', dugtrio: '각성「모래지옥」', farfetchd: '창파나이트의 힘「메테오어썰트」', ditto: '각성 (오라만)',

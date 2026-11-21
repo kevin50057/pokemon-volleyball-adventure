@@ -1,10 +1,11 @@
 /**
  * 面板的外殼：掛到頁面上、開關、畫布的動畫迴圈、選單上的入口按鈕，以及除錯用的介面。
  */
-import { nextZ } from '../../../core/services';
+import { nextZ, svc } from '../../../core/services';
 import type { CharacterId } from '../../../core/types';
 import type { Mods } from '../cards';
-import type { MechId } from '../content';
+import { AWAKEN_AT, EVO_FORMS, STAGE2_AT, formOf, stageOf, type MechId } from '../content';
+import * as evolve from '../match/evolve';
 import { acquireWriter, waitForWriter } from '../env';
 import * as match from '../match/adapter';
 import { awakenFired } from '../match/awaken';
@@ -60,6 +61,8 @@ export async function mount(): Promise<void> {
     left.insertBefore(wrap, left.querySelector('.color-scheme-toggle-switch-container'));
   }
 
+  // 御三家進化型的圖先下載（遠征打開時才會跑到這裡）
+  EVO_FORMS.forEach((f) => { evolve.preload(f); });
   ui.canWrite = await acquireWriter();
   // 另一個分頁拿著寫入權：排隊，那個分頁關掉之後這裡自動變成可以寫（不用重整）
   if (!ui.canWrite) waitForWriter(() => { ui.canWrite = true; void actions.guard(actions.reload); });
@@ -85,15 +88,19 @@ export const debug = {
   /**
    * 電腦對電腦打某一站（不寫存檔），用來檢查場地規則會不會卡死。
    * 回傳 false 表示遊戲本體還沒好或有其他模式在用。結束後呼叫 soakStop()。
-   * awakened：左邊的夥伴當作已經覺醒；bossStart：首領從第幾階段開始。
+   * awakened：左邊的夥伴當作已經覺醒；bossStart：首領從第幾階段開始；stage：御三家當作第幾階（換圖、第二階加強）。
    */
-  soak: (nodeId: string, lead: CharacterId = 'pikachu', mods?: Mods, mechs?: MechId[], cpu = true, awakened = false, bossStart = 0): boolean => {
+  soak: (nodeId: string, lead: CharacterId = 'pikachu', mods?: Mods, mechs?: MechId[], cpu = true, awakened = false, bossStart = 0, stage = 1): boolean => {
+    const bond = stage >= 3 ? AWAKEN_AT : stage === 2 ? STAGE2_AT : 0;
     const node = resolveMatch(nodeId, 'soak');
     if (!node || match.playing()) return false;
     hide();
     return match.start({
       matchId: 'soak/' + nodeId, p1: lead, p2: node.opp, score: node.score, cpuP1: cpu,
-      field: { title: matchName(node), hearts: 3, maxHearts: 3, leadName: lead, rule: node.rule, diff: node.diff, boss: node.boss, bossStart, mods, mechs, awakened },
+      field: {
+        title: matchName(node), hearts: 3, maxHearts: 3, leadName: lead, rule: node.rule, diff: node.diff, boss: node.boss, bossStart, mods, mechs, awakened,
+        form: formOf(lead, bond), stage: stageOf(lead, bond),
+      },
     }, () => { /* 不結算 */ }, () => { /* 不處理 */ });
   },
   soakStop: () => match.stop(true),
@@ -101,4 +108,6 @@ export const debug = {
   autoplay: (on: boolean): void => { ui.autoplay = on; },
   mechFired,
   awakenFired,
+  /** 左邊現在顯示的進化型（沒有換圖是空字串） */
+  evolveShowing: (): string => { const c = svc.ctrl; return c ? evolve.showing(c) : ''; },
 };

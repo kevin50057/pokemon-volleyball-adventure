@@ -12,7 +12,9 @@ export type Tab = 'run' | 'daily' | 'dex' | 'book';
 /** 結算後在地圖畫布上依序播的演出；start 是 0 表示還沒開始（第一次畫的時候才開始計時） */
 export type Scene =
   | { kind: 'capture'; rec: CaptureRecord; start: number }
-  | { kind: 'awaken'; char: string; start: number };
+  | { kind: 'awaken'; char: string; start: number }
+  /** 御三家進化：from、to 是進化前後的樣子（進化型的 id） */
+  | { kind: 'evolve'; char: string; from: string; to: string; start: number };
 
 export interface UiState {
   root: HTMLDivElement | null;

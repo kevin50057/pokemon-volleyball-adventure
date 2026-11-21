@@ -2,7 +2,7 @@
  * 比賽站的卡片（對手、勝分、收服條件、場地規則或首領說明）、藏起來的岔路、夥伴的一句話、日誌。
  */
 import { fmt } from '../../../core/i18n';
-import { CAPTURE_CHANCE, matchNode, type MatchNode } from '../content';
+import { CAPTURE_CHANCE, EVO_LINES, matchNode, type MatchNode } from '../content';
 import { matchSetup, stampsCount } from '../logic';
 import { rngFor } from '../rng';
 import { resolveMatch } from '../route';
@@ -77,7 +77,11 @@ export function journalLines(): string[] {
     const node = r ? resolveMatch(s.nodeId, r.seed) : matchNode(s.nodeId), opp = node ? charName(node.opp) : '?';
     let ln = fmt(s.result === 'win' ? T.jWin : s.result === 'loss' ? T.jLoss : T.jForfeit, { node: node ? matchName(node) : nodeName(s.nodeId), a: s.scores[0], b: s.scores[1], opp });
     if (s.capture) ln += '・' + fmt(s.capture.ok ? T.jCaught : T.jMissed, { name: charName(s.capture.char) });
-    if (s.awakened) ln += '・' + fmt(s.awakened === 'magikarp' ? T.evolveScene : T.awakenScene, { name: charName(s.awakened) });
+    if (s.awakened) {
+      const line = EVO_LINES[s.awakened];
+      ln += '・' + (line ? fmt(T.evolveTo, { from: T.formName[line[0]] || line[0], to: T.formName[line[1]] || line[1] })
+        : fmt(s.awakened === 'magikarp' ? T.evolveScene : T.awakenScene, { name: charName(s.awakened) }));
+    }
     if (s.picked) ln += '・' + fmt(T.jPick, { card: T.cardName[s.picked] || s.picked });
     return ln;
   });

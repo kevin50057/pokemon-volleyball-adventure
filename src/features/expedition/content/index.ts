@@ -18,5 +18,6 @@ export * from './chapters';
 export * from './cards';
 export * from './ranks';
 export * from './awaken';
+export * from './evolve';
 export * from './challenges';
 export * from './goals';

@@ -1,5 +1,8 @@
 /** 遠征的介面文字：繁體中文（其他語言的型別以這一份為準，鍵一定要齊全） */
 export const zh = {
+  formName: { charmeleon: '火恐龍', charizard: '噴火龍', ivysaur: '妙蛙草', venusaur: '妙蛙花', wartortle: '卡咪龜', blastoise: '水箭龜' } as Record<string, string>,
+  evolveTo: '{from}進化成{to}了！', evolveStage: '第 {n} 階', evolveNext: '親密度 {n} 點進化成{to}',
+  stage2Desc: { charmander: '火恐龍：網前殺球更快，「網前」的範圍也更大。', bulbasaur: '妙蛙草：擊球的範圍更寬，飛葉過網後掉得更快。', squirtle: '卡咪龜：撲救更遠，倒地爬起來更快。' } as Record<string, string>,
   heavyWarn: '球要變重了', heavyOn: '重力場：球變重了',
   flipHeavyWarn: '球要變重了', flipLightWarn: '球要變輕了', flipHeavy: '球變重了', flipLight: '球變輕了',
   stasisWarn: '念力…', stasisHold: '念力停球', stasisFizzle: '念力失效',
@@ -10,7 +13,7 @@ export const zh = {
   awakenPop: { pikachu: '十萬伏特！', vaporeon: '水之波動', flareon: '延燒！', jolteon: '高速移動', charmander: '翱翔', bulbasaur: '日光束！', squirtle: '水砲！', magikarp: '進化！', umbreon: '月光', snorlax: '肚皮彈床', jigglypuff: '泰山壓頂！', dragonite: '冷靜', gengar: '詛咒！', electrode: '精準爆破', wobbuffet: '鏡面反射！', mrmime: '冰之屏障', dugtrio: '流沙地獄', farfetchd: '流星突擊！', psyduck: '念力接球', bird: '雷雲！' } as Record<string, string>,
   awakenName: {
     pikachu: '雷丘之力「十萬伏特」', vaporeon: '覺醒「水之波動」', flareon: '覺醒「延燒」', jolteon: '覺醒「高速移動」',
-    charmander: '噴火龍之力「翱翔」', bulbasaur: '妙蛙花之力「日光束」', squirtle: '水箭龜之力「水砲」', magikarp: '真正的進化：暴鯉龍',
+    charmander: '噴火龍「翱翔」', bulbasaur: '妙蛙花「日光束」', squirtle: '水箭龜「水砲」', magikarp: '真正的進化：暴鯉龍',
     umbreon: '覺醒「月光」', snorlax: '覺醒「肚皮彈床」', jigglypuff: '胖可丁之力「泰山壓頂」', dragonite: '覺醒「冷靜」',
     psyduck: '哥達鴨之力「念力接球」', meowth: '貓老大之力「招財」', bird: '覺醒「雷雲」', mew: '覺醒（只有光環）', mewtwo: '覺醒（只有光環）',
     gengar: '覺醒「詛咒」', electrode: '覺醒「精準爆破」', wobbuffet: '覺醒「鏡面反射」', mrmime: '踏冰人偶之力「冰之屏障」', dugtrio: '覺醒「流沙地獄」', farfetchd: '蔥遊兵之力「流星突擊」', ditto: '覺醒（只有光環）',

@@ -2,6 +2,9 @@
 import type { ExpTexts } from './zh';
 
 export const en: ExpTexts = {
+  formName: { charmeleon: 'Charmeleon', charizard: 'Charizard', ivysaur: 'Ivysaur', venusaur: 'Venusaur', wartortle: 'Wartortle', blastoise: 'Blastoise' },
+  evolveTo: '{from} evolved into {to}!', evolveStage: 'Stage {n}', evolveNext: 'Evolves into {to} at {n} friendship',
+  stage2Desc: { charmander: 'Charmeleon: faster spikes near the net, and a wider net zone.', bulbasaur: 'Ivysaur: a wider hitting reach, and leaves drop faster after crossing the net.', squirtle: 'Wartortle: longer dives, and it gets up faster.' },
   heavyWarn: 'The ball is getting heavy', heavyOn: 'Gravity field: heavy ball',
   flipHeavyWarn: 'The ball is getting heavy', flipLightWarn: 'The ball is getting light', flipHeavy: 'Heavy ball', flipLight: 'Light ball',
   stasisWarn: 'Psychic…', stasisHold: 'Psychic stasis', stasisFizzle: 'Psychic fizzled',
@@ -12,7 +15,7 @@ export const en: ExpTexts = {
   awakenPop: { pikachu: 'Thunderbolt!', vaporeon: 'Water Pulse', flareon: 'Burn on!', jolteon: 'Agility', charmander: 'Glide', bulbasaur: 'Solar Beam!', squirtle: 'Hydro Cannon!', magikarp: 'Evolve!', umbreon: 'Moonlight', snorlax: 'Belly Bounce', jigglypuff: 'Body Slam!', dragonite: 'Calm', gengar: 'Curse!', electrode: 'Precise Blast', wobbuffet: 'Mirror Coat!', mrmime: 'Ice Barrier', dugtrio: 'Sand Tomb', farfetchd: 'Meteor Assault!', psyduck: 'Psychic Catch', bird: 'Storm Cloud!' },
   awakenName: {
     pikachu: 'Raichu’s power: Thunderbolt', vaporeon: 'Awakened: Water Pulse', flareon: 'Awakened: Lingering Flame', jolteon: 'Awakened: Agility',
-    charmander: 'Charizard’s power: Glide', bulbasaur: 'Venusaur’s power: Solar Beam', squirtle: 'Blastoise’s power: Hydro Cannon', magikarp: 'True evolution: Gyarados',
+    charmander: 'Charizard: Glide', bulbasaur: 'Venusaur: Solar Beam', squirtle: 'Blastoise: Hydro Cannon', magikarp: 'True evolution: Gyarados',
     umbreon: 'Awakened: Moonlight', snorlax: 'Awakened: Belly Bounce', jigglypuff: 'Wigglytuff’s power: Body Slam', dragonite: 'Awakened: Calm',
     psyduck: 'Golduck’s power: Psychic Catch', meowth: 'Persian’s power: Pay Day', bird: 'Awakened: Storm Cloud', mew: 'Awakened (aura only)', mewtwo: 'Awakened (aura only)',
     gengar: 'Awakened: Curse', electrode: 'Awakened: Precise Blast', wobbuffet: 'Awakened: Mirror Coat', mrmime: 'Mr. Rime’s power: Ice Barrier', dugtrio: 'Awakened: Sand Tomb', farfetchd: 'Sirfetch’d’s power: Meteor Assault', ditto: 'Awakened (aura only)',

@@ -294,6 +294,64 @@ tests['tabs: write access moves to the other tab when the writer closes'] = asyn
   await ctx.close();
 };
 
+// 御三家進化：比賽中換成進化型的圖、第二階加強；打完換回一階、數值還原
+tests['evolve: starters show their evolved sprite in matches'] = async function () {
+  const { ctx, page, errors } = await fresh();
+  await ready(page);
+  const out = await page.evaluate(async () => {
+    const E = PVA.expedition, c = PVA.svc.ctrl, T = PVA.svc.abilities.tuning, base = JSON.stringify(T), res = [];
+    for (const [lead, stage, want] of [['charmander', 2, 'charmeleon'], ['charmander', 3, 'charizard'], ['bulbasaur', 2, 'ivysaur'], ['bulbasaur', 3, 'venusaur'], ['squirtle', 2, 'wartortle'], ['squirtle', 3, 'blastoise'], ['charmander', 1, '']]) {
+      E.soak('warmup', lead, undefined, undefined, true, stage === 3, 0, stage);
+      let shown = '';
+      for (let i = 0; i < 80 && !shown; i++) { c.gameLoop(); shown = E.evolveShowing(); await __sleep(10); }
+      const tuned = JSON.stringify(T) !== base;
+      const r = await __ff();
+      E.soakStop(); await __sleep(30);
+      const restored = c.view.game.player1.textures === c.view.game.playerTextureArrays[lead] && JSON.stringify(T) === base;
+      res.push({ lead, stage, want, shown, tuned, stuck: r.stuck, restored });
+    }
+    return res;
+  });
+  out.forEach((r) => {
+    expect(r.shown === r.want, r.lead + ' stage ' + r.stage + ' showed "' + r.shown + '" instead of "' + r.want + '"');
+    expect(r.tuned === (r.stage >= 2), r.lead + ' stage ' + r.stage + ': stage-2 tuning ' + (r.tuned ? 'applied' : 'missing'));
+    expect(!r.stuck, r.lead + ' stage ' + r.stage + ' got stuck');
+    expect(r.restored, r.lead + ' stage ' + r.stage + ': sprite or tuning not restored after the match');
+  });
+  console.log('    ' + out.filter((r) => r.want).map((r) => r.want).join(', '));
+  expect(!errors.length, 'page errors: ' + [...new Set(errors)].join(' | '));
+  await ctx.close();
+};
+
+// 面板：帶小火龍出發，贏到親密度 3 點，播進化演出、隊伍上顯示火恐龍
+tests['evolve: the panel plays the evolution and shows the new form'] = async function () {
+  const { ctx, page, errors } = await fresh();
+  await ready(page);
+  const out = await page.evaluate(async () => {
+    const E = PVA.expedition;
+    const pick = [...document.querySelectorAll('#pv-exp .pv-exp-chars .pv-exp-btn.char')].find((b) => b.textContent.includes('小火龍') || b.textContent.includes('Charmander'));
+    if (!pick) return { error: 'no Charmander button' };
+    pick.click(); await __sleep(50);
+    await E.actions.startNewRun(); await __until(() => __run());
+    if (__run().partyIds[0] !== 'charmander') return { error: 'lead is ' + __run().partyIds[0] };
+    let scene = null;
+    for (let i = 0; i < 30 && !scene; i++) {
+      const m = await __step();
+      if (m.startsWith('error') || m.startsWith('ended')) return { error: m };
+      const sc = E.state().scenes.find((s) => s.kind === 'evolve');
+      if (sc) scene = { from: sc.from, to: sc.to };
+    }
+    await __sleep(300);
+    const lead = document.querySelector('#pv-exp .pv-exp-mate.lead b');
+    return { scene, bond: __run().bond.charmander, leadName: lead ? lead.textContent : '' };
+  });
+  expect(!out.error, out.error || '');
+  expect(out.scene && out.scene.from === 'charmander' && out.scene.to === 'charmeleon', 'no evolution scene: ' + JSON.stringify(out));
+  expect(/火恐龍|Charmeleon/.test(out.leadName), 'party still shows ' + out.leadName);
+  expect(!errors.length, 'page errors: ' + [...new Set(errors)].join(' | '));
+  await ctx.close();
+};
+
 async function main() {
   server = await preview({ preview: { port: 0, strictPort: false }, logLevel: 'silent' });
   const addr = server.httpServer.address();

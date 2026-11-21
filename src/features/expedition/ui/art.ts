@@ -4,7 +4,8 @@
  */
 import { svc } from '../../../core/services';
 import { heart, label, star4 } from '../../campaign/draw';
-import { FORK_OF, STOPS as STOPS1, matchNode, nodeById, type MatchNode } from '../content';
+import { EVO_FORMS, FORK_OF, STOPS as STOPS1, matchNode, nodeById, type MatchNode } from '../content';
+import { formFace } from '../match/evolve';
 import { rngFor } from '../rng';
 
 type G = CanvasRenderingContext2D;
@@ -13,6 +14,17 @@ const faces: Record<string, HTMLCanvasElement | null> = {};
 /** 頭像（快取）；選角面板還沒好就回 null */
 export function face(id: string): HTMLCanvasElement | null {
   if (faces[id]) return faces[id];
+  if (EVO_FORMS.indexOf(id) >= 0) {
+    // 御三家的進化型：選角面板沒有，從精靈圖的第一格切
+    const im = formFace(id);
+    if (!im) return null;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d');
+    if (!g) return null;
+    g.imageSmoothingEnabled = false; g.drawImage(im, 1, 1, 64, 64, 0, 0, 64, 64);
+    faces[id] = c;
+    return c;
+  }
   try { const cs = svc.charSelect; if (cs) faces[id] = cs.portrait(id, 64); } catch { /* 素材還沒載好 */ }
   return faces[id] || null;
 }
@@ -225,6 +237,8 @@ export interface AwakenScene {
   title: string;
   sub: string;
   note: string;
+  /** 進化：閃光之前是這個樣子，之後換成 char */
+  from?: string;
 }
 /** f：從開始算起的幀數。光柱升起、光環往上飄、一陣閃光之後出現★和文字。回傳演完了沒。 */
 export function drawAwaken(g: G, w: number, h: number, f: number, t: number, nums: readonly number[], a: AwakenScene): boolean {
@@ -242,7 +256,7 @@ export function drawAwaken(g: G, w: number, h: number, f: number, t: number, num
   g.restore();
   g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(cx, cy + 32, 28, 6, 0, 0, Math.PI * 2); g.fill();
   const rise = Math.sin(Math.min(1, f / 20) * Math.PI / 2) * 8;
-  drawFace(g, a.char, cx, cy - rise, 62);
+  drawFace(g, a.from && f < 27 ? a.from : a.char, cx, cy - rise, 62);
   if (f > 18 && f < 36) {      // 閃光
     g.save(); g.globalAlpha = Math.abs(Math.sin((f - 18) / 18 * Math.PI)) * 0.85; g.fillStyle = '#fff';
     g.beginPath(); g.arc(cx, cy - rise, 34 + (f - 18), 0, Math.PI * 2); g.fill(); g.restore();

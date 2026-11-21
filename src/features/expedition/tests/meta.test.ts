@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  AWAKEN, AWAKEN_AT, BIG_BOSS_HP, CARDS, CHAPTERS, FILL_BOND, FILL_HEAL, STARTERS, START_HEARTS, STONE_BOND, bondLevel, matchNode, maxHearts, startBond,
+  AWAKEN, AWAKEN_AT, BIG_BOSS_HP, EVO_LINES, STAGE2_AT, formOf, stageOf, CARDS, CHAPTERS, FILL_BOND, FILL_HEAL, STARTERS, START_HEARTS, STONE_BOND, bondLevel, matchNode, maxHearts, startBond,
 } from '../content';
 import { rngFor } from '../rng';
 import {
@@ -91,6 +91,42 @@ describe('friendship and awakening', () => {
     expect(fillsFor({ ...full, hearts: 1, bond: { pikachu: AWAKEN_AT, vaporeon: AWAKEN_AT }, awakened: ['pikachu', 'vaporeon'] })).toEqual([FILL_HEAL]);
     expect(pickReward(r, r.revision, FILL_HEAL).hearts).toBe(START_HEARTS);
     expect(pickReward({ ...r, hearts: 1 }, r.revision, FILL_HEAL).hearts).toBe(2);
+  });
+});
+
+describe('starter evolution', () => {
+  it('the starters evolve at 3 and 6 friendship; others keep their look', () => {
+    expect([0, 2, 3, 5, 6].map((b) => stageOf('charmander', b))).toEqual([1, 1, 2, 2, 3]);
+    expect([0, 3, 6].map((b) => formOf('charmander', b))).toEqual(['charmander', 'charmeleon', 'charizard']);
+    expect(formOf('bulbasaur', 6)).toBe('venusaur');
+    expect(formOf('squirtle', 3)).toBe('wartortle');
+    expect(formOf('pikachu', 6)).toBe('pikachu');
+    expect(stageOf('pikachu', 6)).toBe(1);
+    expect(STAGE2_AT).toBeLessThan(AWAKEN_AT);
+  });
+  it('evolving follows friendship, and a chapter restart takes it back', () => {
+    const w = new Walker({ ...mkRun({ party: 'charmander' }), bond: { charmander: STAGE2_AT - 1 } });
+    w.r = { ...w.r, checkpoint: { ...w.r.checkpoint, bond: { charmander: STAGE2_AT - 1 } } };
+    w.win();
+    expect(formOf('charmander', w.r.bond.charmander || 0)).toBe('charmeleon');
+    w.r = chooseBranch(w.r, w.r.revision, 'f1a', w.p);
+    for (let i = 0; i < START_HEARTS; i++) w.lose();
+    expect(formOf('charmander', w.r.bond.charmander || 0)).toBe('charmander');
+  });
+  it('every evolved form has a sprite sheet laid out like its first stage', () => {
+    // 用 Vite 的 glob 讀 public 底下的圖檔清單和格子設定（不用 Node 的檔案 API）
+    const sheets: Record<string, unknown> = import.meta.glob('/public/resources/assets/images/*_sheet.json', { eager: true, import: 'default' });
+    const pngs = Object.keys(import.meta.glob('/public/resources/assets/images/*_sheet.png'));
+    const frames = (id: string): string[] => {
+      const d = sheets['/public/resources/assets/images/' + id + '_sheet.json'];
+      if (!d || typeof d !== 'object' || !('frames' in d) || !d.frames || typeof d.frames !== 'object') throw new Error('bad sheet ' + id);
+      return Object.keys(d.frames).map((k) => k.replace(/^[a-z]+\/[a-z]+_/, ''));
+    };
+    Object.entries(EVO_LINES).forEach(([base, forms]) => forms.forEach((f) => {
+      expect(pngs, f).toContain('/public/resources/assets/images/' + f + '_sheet.png');
+      expect(frames(f), f).toEqual(frames(base));
+      expect(frames(f).length, f).toBe(28);
+    }));
   });
 });
 

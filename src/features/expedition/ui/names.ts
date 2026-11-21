@@ -4,7 +4,7 @@
 import { fmt } from '../../../core/i18n';
 import { CHARACTER_IDS, type CharacterId } from '../../../core/types';
 import { CHARS } from '../../characters';
-import { CHAPTERS, NODES, type MatchNode, type Stops } from '../content';
+import { CHAPTERS, NODES, formOf, type MatchNode, type Stops } from '../content';
 import { mewOpen } from '../logic';
 import { rngFor } from '../rng';
 import { resolveMatch } from '../route';
@@ -15,6 +15,10 @@ import { ui } from './state';
 
 export function charName(id: string): string { const c = CHARS.byId[id]; return c ? c.name : id; }
 export function nodeName(id: string): string { return T.nodeName[id] || id; }
+/** 這一輪的樣子的名字：御三家進化了就是進化型的名字（火恐龍…） */
+export function formName(id: string, bond: number): string { const f = formOf(id, bond); return f !== id ? T.formName[f] || f : charName(id); }
+/** 這一輪隊伍裡某一隻的樣子（給頭像用） */
+export function formIn(r: Pick<ExpeditionRun, 'bond'>, id: string): string { return formOf(id, r.bond[id] || 0); }
 /** 字串 → 角色 id（不認得的回 undefined） */
 export function charId(id: string): CharacterId | undefined { return CHARACTER_IDS.find((c) => c === id); }
 

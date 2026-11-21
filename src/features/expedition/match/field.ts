@@ -15,6 +15,7 @@ import { RULE_CFG, type BossDef, type Diff, type MechId, type RuleId } from '../
 import { T } from '../texts';
 import { newAiState, weakenAi, type AiState } from './ai';
 import * as awaken from './awaken';
+import * as evolve from './evolve';
 import { bossPhysics, bossPre, newBoss, phaseOf, type BossState } from './boss';
 import { drawBoss } from './boss-draw';
 import { NET_X, isLive } from './geom';
@@ -45,6 +46,9 @@ export interface FieldSpec {
   awakened?: boolean;
   /** 覺醒光環的顏色 */
   auraColor?: string;
+  /** 御三家進化：這一階的樣子（進化型的 id）和第幾階 */
+  form?: string;
+  stage?: number;
 }
 
 const F = {
@@ -69,6 +73,7 @@ export function begin(c: Controller, spec: FieldSpec): void {
   F.ai = newAiState(); F.mods = newModsState(); F.tick = 0;
   mech.setup(spec.mechs);
   awaken.setup(c, spec.awakened ? c.physics.player1.character : '', spec.auraColor || '#FFD54F', T.awakenPop);
+  evolve.setup(c, c.physics.player1.character, spec.form || c.physics.player1.character, spec.stage || 1);
   flags.goldBall = false;
   if (spec.boss) {
     const start = Math.max(0, Math.min(spec.boss.phases.length - 1, spec.bossStart || 0));
@@ -94,6 +99,7 @@ export function end(c: Controller | null): void {
   F.spec = null; F.rule = null; F.boss = null;
   flags.goldBall = false;
   awaken.end(c);
+  evolve.end(c);
   clearHud();
   restoreAll(c);
   if (c && hadMods) clearMods(c.physics.player1);
@@ -154,6 +160,7 @@ export function aiLayer(next: AiNext, player: Player, ball: Ball, opp: Player, i
 export function drawHud(c: Controller): void {
   const spec = F.spec;
   if (!spec) return;
+  evolve.swap(c);
   const g = hudContext();
   if (!g) return;
   const t = F.tick, lite = !!(svc.fxLite && svc.fxLite());

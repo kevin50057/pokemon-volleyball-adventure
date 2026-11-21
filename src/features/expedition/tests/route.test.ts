@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  AWAKEN, CARDS, CHALLENGES, CHAPTERS, CHAR_TAG, DEX_WHERE, EVENTS, FORK_OF, GOALS, NODES, RULE_POOL, START_HEARTS,
+  AWAKEN, CARDS, CHALLENGES, EVO_FORMS, EVO_LINES, CHAPTERS, CHAR_TAG, DEX_WHERE, EVENTS, FORK_OF, GOALS, NODES, RULE_POOL, START_HEARTS,
   chapterOf, isMechCard, matchNode, nodeById,
 } from '../content';
 import { chooseBranch, leaveSupply, resolveEvent, slotsOf, validateRun } from '../logic';
@@ -145,6 +145,8 @@ describe('content', () => {
       }));
       Object.keys(EVENTS).forEach((e) => { need(T.eventTitle, e, 'eventTitle'); need(T.eventDesc, e, 'eventDesc'); });
       GOALS.forEach((g) => need(T.goalName, g.id, 'goalName'));
+      EVO_FORMS.forEach((f) => need(T.formName, f, 'formName'));
+      Object.keys(EVO_LINES).forEach((b) => need(T.stage2Desc, b, 'stage2Desc'));
       CHALLENGES.forEach((c) => { need(T.challengeName, c, 'challengeName'); need(T.challengeDesc, c, 'challengeDesc'); });
       // 岔路會抽到的對手：都有地名和夥伴的提示
       NODES.forEach((n) => { if (n.kind === 'match' && n.slot) n.slot.pool.forEach((opp) => { need(T.placeByOpp, opp, 'placeByOpp'); need(T.tipsOpp, opp, 'tipsOpp'); }); });

@@ -5,7 +5,7 @@
 import { fmt } from '../../../core/i18n';
 import { onReady, svc } from '../../../core/services';
 import { STATS, cardMods } from '../cards';
-import { auraColorOf, cardById, startBond, type EventChoice, type MechId } from '../content';
+import { auraColorOf, cardById, formOf, hasStages, stageOf, startBond, type EventChoice, type MechId } from '../content';
 import { DbError, ExpeditionDb } from '../db';
 import { RuleError, dailyPlan, dailyScore, heartCap, matchSetup, newDailyRun, newRun, randomPartner, utcDate } from '../logic';
 import * as match from '../match/adapter';
@@ -14,8 +14,20 @@ import { newSeed } from '../rng';
 import { resolveMatch } from '../route';
 import { T } from '../texts';
 import type { ExpeditionRun, MatchResult, ProfileV1, SaveSlot } from '../types';
-import { chapterLabel, charId, charName, matchName } from './names';
-import { ended, ids, partners, profile, run, setRun, ui, view, type Tab } from './state';
+import { chapterLabel, charId, formName, matchName } from './names';
+import { ended, ids, partners, profile, run, setRun, ui, view, type Scene, type Tab } from './state';
+
+/** 這一下誰進化（御三家換階段）或覺醒了：要播的演出 */
+function growthScenes(before: ExpeditionRun, after: ExpeditionRun): Scene[] {
+  const out: Scene[] = [];
+  after.partyIds.concat(after.benchIds).forEach((id) => {
+    const b0 = before.bond[id] || 0, b1 = after.bond[id] || 0;
+    if (hasStages(id)) {
+      if (stageOf(id, b1) > stageOf(id, b0)) out.push({ kind: 'evolve', char: id, from: formOf(id, b0), to: formOf(id, b1), start: 0 });
+    } else if (after.awakened.indexOf(id) >= 0 && before.awakened.indexOf(id) < 0) out.push({ kind: 'awaken', char: id, start: 0 });
+  });
+  return out;
+}
 
 // ---------- 共用 ----------
 
@@ -80,7 +92,7 @@ function change(fn: (db: ExpeditionDb, r: ExpeditionRun) => Promise<ExpeditionRu
     if (st.kind === 'ok') ui.state = st; else setRun(next);
     ui.journal = await db.settlementsOf(next.runId);
     ui.note = ''; ui.loadout = null;
-    ui.scenes = next.awakened.filter((id) => r.awakened.indexOf(id) < 0).map((char) => ({ kind: 'awaken', char, start: 0 }));
+    ui.scenes = growthScenes(r, next);
   });
 }
 
@@ -161,7 +173,8 @@ export function fight(): Promise<void> {
     if (!node || !r2.matchId || !lead) return;
     const setup = matchSetup(r2, node), mods = cardMods(lead, r2.equippedCardIds, r2.partyIds[1]);
     const field: FieldSpec = {
-      title: matchName(node), hearts: r2.hearts, maxHearts: heartCap(r2), leadName: charName(lead),
+      title: matchName(node), hearts: r2.hearts, maxHearts: heartCap(r2), leadName: formName(lead, r2.bond[lead] || 0),
+      form: formOf(lead, r2.bond[lead] || 0), stage: stageOf(lead, r2.bond[lead] || 0),
       mechs: mechsOf(r2.equippedCardIds), bossStart: setup.bossStart,
       awakened: r2.awakened.indexOf(lead) >= 0, auraColor: auraColorOf(lead),
     };
@@ -184,6 +197,7 @@ function settle(slot: SaveSlot, matchId: string, result: MatchResult, scores: [n
   return guard(async () => {
     // 結算到開打的那個存檔位（呼叫時就定下來，「再試一次」也不會跑到另一邊），畫面也切回去
     ui.slot = slot; ui.tab = slot === 'daily' ? 'daily' : 'run';
+    const before = run();
     const db = await slotDb(slot);
     const out = await db.settle(matchId, result, scores, Date.now(), ids(), bossReached === undefined ? {} : { bossReached });
     ui.state = { kind: 'ok', profile: out.profile, run: out.run };
@@ -201,7 +215,8 @@ function settle(slot: SaveSlot, matchId: string, result: MatchResult, scores: [n
     ui.scenes = [];
     if (!out.duplicate) {
       if (s.capture) ui.scenes.push({ kind: 'capture', rec: s.capture, start: 0 });
-      if (s.awakened) ui.scenes.push({ kind: 'awaken', char: s.awakened, start: 0 });
+      if (before && before.runId === out.run.runId) ui.scenes.push(...growthScenes(before, out.run));
+      else if (s.awakened) ui.scenes.push({ kind: 'awaken', char: s.awakened, start: 0 });
     }
   }).then(() => new Promise<void>((resolve) => {
     setTimeout(() => {

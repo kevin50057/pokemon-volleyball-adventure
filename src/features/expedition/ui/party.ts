@@ -2,12 +2,12 @@
  * 隊伍：上場／備援、親密度（滿了就覺醒）、後援換人，以及上場夥伴的進化之力說明。
  */
 import { fmt } from '../../../core/i18n';
-import { AWAKEN_AT, PARTY_MAX, auraColorOf, bondLevel, canAwaken } from '../content';
+import { AWAKEN_AT, EVO_LINES, PARTY_MAX, STAGE2_AT, auraColorOf, bondLevel, canAwaken, hasStages, stageOf } from '../content';
 import { hasChallenge } from '../logic';
 import { T } from '../texts';
 import type { ExpeditionRun, ProfileV1 } from '../types';
 import { sendIn, swap } from './actions';
-import { charName } from './names';
+import { charName, formIn, formName } from './names';
 import { profile, ui, view } from './state';
 import { button, el, portrait } from './widgets';
 
@@ -23,7 +23,13 @@ function friendLine(r: ExpeditionRun, id: string): HTMLElement {
   }
   if (!canAwaken(id)) return el('div', 'pv-exp-dim', T.noAwaken);
   const b = Math.min(AWAKEN_AT, r.bond[id] || 0);
-  return el('div', 'pv-exp-friend', T.bondLabel + ' ' + '●'.repeat(b) + '○'.repeat(AWAKEN_AT - b));
+  const dots = '●'.repeat(b) + '○'.repeat(AWAKEN_AT - b);
+  if (!hasStages(id)) return el('div', 'pv-exp-friend', T.bondLabel + ' ' + dots);
+  // 御三家：第幾階，加上下一階要幾點
+  const st = stageOf(id, b), line = EVO_LINES[id], next = st === 1 ? STAGE2_AT : AWAKEN_AT;
+  const box = el('div', 'pv-exp-friend', fmt(T.evolveStage, { n: st }) + '｜' + T.bondLabel + ' ' + dots);
+  if (line) box.appendChild(el('div', 'pv-exp-dim', fmt(T.evolveNext, { n: next, to: T.formName[line[st - 1]] || '' })));
+  return box;
 }
 
 export function partyView(r: ExpeditionRun, canSwitch: boolean): HTMLElement {
@@ -35,9 +41,9 @@ export function partyView(r: ExpeditionRun, canSwitch: boolean): HTMLElement {
     const awake = r.awakened.indexOf(id) >= 0;
     const cell = el('div', 'pv-exp-mate' + (i === 0 ? ' lead' : '') + (awake ? ' awake' : ''));
     if (awake) cell.style.setProperty('--aura', auraColorOf(id));
-    cell.appendChild(portrait(id, i === 0 ? 44 : 34));
+    cell.appendChild(portrait(formIn(r, id), i === 0 ? 44 : 34));
     const txt = el('div');
-    const name = el('b', '', charName(id) + (awake ? '★' : ''));
+    const name = el('b', '', formName(id, r.bond[id] || 0) + (awake && !hasStages(id) ? '★' : ''));
     const lv = levelOf(p, id);
     if (lv >= 2) name.appendChild(el('span', 'pv-exp-lv', 'Lv' + lv));
     txt.appendChild(name);
@@ -72,7 +78,14 @@ function powerNote(r: ExpeditionRun): HTMLElement {
   const lead = r.partyIds[0], d = el('details', 'pv-exp-journal');
   const awake = r.awakened.indexOf(lead) >= 0;
   d.appendChild(el('summary', '', T.awakenTitle + '：' + (canAwaken(lead) ? T.awakenName[lead] || '' : T.noAwaken)));
-  if (canAwaken(lead)) {
+  if (hasStages(lead)) {
+    // 御三家：第二階加強、第三階的新能力
+    const line = EVO_LINES[lead], st = stageOf(lead, r.bond[lead] || 0);
+    if (line) {
+      d.appendChild(el('div', st >= 2 ? '' : 'pv-exp-dim', fmt(T.evolveNext, { n: STAGE2_AT, to: T.formName[line[0]] || '' }) + '：' + (T.stage2Desc[lead] || '')));
+      d.appendChild(el('div', st >= 3 ? '' : 'pv-exp-dim', fmt(T.evolveNext, { n: AWAKEN_AT, to: T.formName[line[1]] || '' }) + '：' + (T.awakenDesc[lead] || '')));
+    }
+  } else if (canAwaken(lead)) {
     if (!awake) d.appendChild(el('div', 'pv-exp-dim', fmt(T.friendHint, { n: AWAKEN_AT })));
     d.appendChild(el('div', '', T.awakenDesc[lead] || ''));
     d.appendChild(el('div', 'pv-exp-dim', lead === 'magikarp' ? T.evolveNote : T.awakenNote));

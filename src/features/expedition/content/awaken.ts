@@ -1,16 +1,18 @@
 /**
- * 進化之力：夥伴的羈絆值滿了就在這一輪「覺醒」。
- *  - 只有鯉魚王是真的進化（用現有的暴鯉龍圖）；其他角色是「覺醒」：樣子不變，借來進化後的力量。
+ * 進化之力：夥伴的親密度滿了就在這一輪「覺醒」。
+ *  - 御三家是真的進化（二階、三階換圖，見 evolve.ts），三階的能力就是這裡的覺醒；鯉魚王進化成暴鯉龍（現有的圖）。
+ *  - 其他角色是「覺醒」：樣子不變，借來進化後的力量。
  *  - 不畫任何進化型的圖。名字顯示成「皮卡丘★」，副標寫借來的力量（雷丘之力…）。
  *  - 效果只在這一輪；圖鑑永久記「看過牠覺醒」。效果在 ../match/awaken.ts，改的是技能的規則，不是加倍率。
  */
 import { CHAR_TAG, type Tag } from './cards';
 
-export type AwakenKind = 'evolve' | 'awaken' | 'look';
+/** stages：御三家，二、三階真的換圖；evolve：鯉魚王 → 暴鯉龍；awaken：樣子不變；look：只有光環 */
+export type AwakenKind = 'stages' | 'evolve' | 'awaken' | 'look';
 /** 能覺醒的角色：全部 24 隻（look：只有外觀，沒有效果——超夢、夢幻照 SPEC §3 不加強度；百變怪本來就一直在變身） */
 export const AWAKEN: Readonly<Record<string, AwakenKind>> = {
   pikachu: 'awaken', vaporeon: 'awaken', flareon: 'awaken', jolteon: 'awaken',
-  charmander: 'awaken', bulbasaur: 'awaken', squirtle: 'awaken', magikarp: 'evolve',
+  charmander: 'stages', bulbasaur: 'stages', squirtle: 'stages', magikarp: 'evolve',
   umbreon: 'awaken', snorlax: 'awaken', jigglypuff: 'awaken', dragonite: 'awaken',
   psyduck: 'awaken', meowth: 'awaken', bird: 'awaken',
   gengar: 'awaken', electrode: 'awaken', wobbuffet: 'awaken', mrmime: 'awaken', dugtrio: 'awaken', farfetchd: 'awaken',

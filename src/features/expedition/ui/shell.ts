@@ -34,6 +34,8 @@ export function show(): void {
 }
 export function hide(): void {
   if (!ui.root) return;
+  // 比賽暫停中（切到背景或失焦回來）：面板不能關，不然畫面停住卻沒有任何提示。要按「繼續」或「放棄本場」
+  if (ui.pausedHidden && match.playing()) return;
   ui.root.style.display = 'none';
 }
 

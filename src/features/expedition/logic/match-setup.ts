@@ -12,6 +12,8 @@ export interface MatchSetup {
   diff?: Diff;
   boss?: BossDef;
   bossStart: number;
+  /** 這一場打到幾分結束：首領戰是首領的血量（難度、挑戰加的血也算），其他是節點的勝分 */
+  score: number;
 }
 
 export function matchSetup(run: ExpeditionRun, node: MatchNode): MatchSetup {
@@ -20,7 +22,7 @@ export function matchSetup(run: ExpeditionRun, node: MatchNode): MatchSetup {
   let boss = rankBoss(node.boss, run.rank);
   if (boss && hasChallenge(run, 'bigBoss')) boss = bossWithExtraHp(boss, BIG_BOSS_HP);
   const bossStart = boss && run.mode === 'chapter' ? Math.min(boss.phases.length - 1, run.bossPhase || 0) : 0;
-  const out: MatchSetup = { diff: rankDiff(node.diff, run.rank), bossStart };
+  const out: MatchSetup = { diff: rankDiff(node.diff, run.rank), bossStart, score: boss ? boss.hp : node.score };
   if (rule) out.rule = rule;
   if (boss) out.boss = boss;
   return out;

@@ -3,8 +3,9 @@
  */
 import { fmt } from '../../../core/i18n';
 import type { DbError } from '../db';
+import * as match from '../match/adapter';
 import { T } from '../texts';
-import { exportSave, moveAside, switchTab } from './actions';
+import { exportSave, moveAside, resume, switchTab } from './actions';
 import { chooser } from './chooser';
 import { bookView, dexView } from './collection';
 import { dailyPanel } from './daily';
@@ -30,7 +31,7 @@ export function render(): void {
   head.appendChild(el('b', '', r0 && (ui.tab === 'run' || ui.tab === 'daily') ? runName(r0) : T.title));
   const tabs = el('div', 'pv-exp-tabs');
   TABS.forEach(([id, label]) => tabs.appendChild(button(label(), () => switchTab(id), 'small' + (ui.tab === id ? ' on' : ''))));
-  tabs.appendChild(button('×', view.hide, 'x'));
+  if (!(ui.pausedHidden && match.playing())) tabs.appendChild(button('×', view.hide, 'x'));
   head.appendChild(tabs);
   box.appendChild(head);
   const body = el('div', 'pv-exp-body');
@@ -45,6 +46,11 @@ export function render(): void {
     body.appendChild(err);
   }
   if (!ui.canWrite) body.appendChild(el('p', 'pv-exp-warn', T.readonly));
+  // 比賽暫停中，但現在看的不是那一場的分頁（圖鑑、手冊、另一個存檔位）：這裡也要有「繼續」
+  if (ui.pausedHidden && match.playing() && (ui.tab === 'dex' || ui.tab === 'book' || ui.slot !== ui.matchSlot)) {
+    body.appendChild(el('p', 'pv-exp-note', T.paused));
+    body.appendChild(button(T.resume, resume, 'main'));
+  }
 
   const st = ui.state;
   if (!st) { body.appendChild(el('p', '', T.loading)); return; }

@@ -5,7 +5,7 @@
  */
 import type { Controller, GameState } from '../../../core/types';
 import { sfx } from '../../campaign/sfx';
-import { RULE_CFG, type RuleId } from '../content';
+import { MAX_BALL_SPEED, RULE_CFG, type RuleId } from '../content';
 import { BALL_GROUND, W } from './geom';
 
 export interface Puddle { x: number; t: number }
@@ -89,11 +89,11 @@ export function rulePhysics(c: Controller, r: RuleState, o: RuleOpts): boolean {
   const cy = cycleOf(r.id, r.rt);
   if (r.id === 'rain') rain(c, r, o);
   else if (r.id === 'lowgrav') {
-    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity -= 1;
+    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity = Math.max(-MAX_BALL_SPEED, ball.yVelocity - 1);
   } else if (r.id === 'heavy') {
-    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity += 1;
+    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity = Math.min(MAX_BALL_SPEED, ball.yVelocity + 1);
   } else if (r.id === 'gravflip') {
-    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity += gravflipHeavy(r.rt) ? 1 : -1;
+    if (cy.on && air && r.rt % 2 === 0 && !o.spares) ball.yVelocity = Math.max(-MAX_BALL_SPEED, Math.min(MAX_BALL_SPEED, ball.yVelocity + (gravflipHeavy(r.rt) ? 1 : -1)));
   } else if (r.id === 'wind') {
     const Lw = RULE_CFG.wind;
     if (cy.k === Lw.warnAt) { r.dir = Math.random() < 0.5 ? -1 : 1; sfx('wind'); }

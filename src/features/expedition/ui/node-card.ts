@@ -35,7 +35,7 @@ export function nodeCard(node: MatchNode, action: HTMLElement | null, r: Expedit
   if (cap) tt.appendChild(el('div', 'pv-exp-cap', '◓ ' + cap));
   head.appendChild(tt);
   card.appendChild(head);
-  const setup = r ? matchSetup(r, node) : { rule: node.rule, boss: node.boss, bossStart: 0 };
+  const setup = r ? matchSetup(r, node) : { rule: node.rule, boss: node.boss, bossStart: 0, score: node.score };
   const boss = setup.boss;
   if (setup.rule) { card.appendChild(el('b', 'pv-exp-rule ' + setup.rule, T.ruleName[setup.rule])); card.appendChild(el('p', '', T.ruleDesc[setup.rule])); }
   else if (boss) {

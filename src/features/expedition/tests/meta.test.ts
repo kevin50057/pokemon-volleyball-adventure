@@ -46,6 +46,9 @@ describe('friendship and awakening', () => {
     const r = { ...mkRun({ party: ['pikachu', 'vaporeon'] }), ownedCardIds: ['expShare'], equippedCardIds: ['expShare'] };
     const out = play(r, newProfile(), 'win');
     expect(out.run.bond).toEqual({ pikachu: 1, vaporeon: 1 });
+    // 這一場才收服、補進隊伍的夥伴不算備援
+    const solo = { ...mkRun(), ownedCardIds: ['expShare'], equippedCardIds: ['expShare'] };
+    expect(play(solo, newProfile(), 'win').run.bond).toEqual({ pikachu: 1 });
   });
   it('a chapter restart takes back the awakening from that chapter', () => {
     const w = new Walker({ ...mkRun({ mode: 'chapter' }), bond: { pikachu: AWAKEN_AT - 1 } });
@@ -125,6 +128,10 @@ describe('challenges', () => {
     expect(big.phases.slice(1)).toEqual(base.phases.slice(1));
     const both = must(matchSetup(mkRun({ challenges: ['bigBoss'], rank: 2 }), BOSS3).boss, 'boss');
     expect(both.hp).toBe(base.hp + BIG_BOSS_HP + 2);
+    // 加了血，這一場要打到的分數也要跟著加，不然血還沒打完比賽就結束了
+    expect(matchSetup(mkRun({ challenges: ['bigBoss'], rank: 2 }), BOSS3).score).toBe(both.hp);
+    expect(matchSetup(mkRun(), BOSS3).score).toBe(base.hp);
+    expect(matchSetup(mkRun(), must(matchNode('warmup'), 'warmup')).score).toBe(5);
   });
   it('Fate: the seed picks the partner', () => {
     const list = ['pikachu', 'vaporeon', 'flareon'];

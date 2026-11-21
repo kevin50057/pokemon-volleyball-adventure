@@ -8,7 +8,7 @@
  */
 import {
   RuleError, applySettlement, beginMatch as ruleBegin, chooseBranch as ruleBranch, leaveSupply as ruleSupply,
-  makeSettlement, newProfile, noteAwakened, type SettleInfo, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
+  makeSettlement, newProfile, noteAwakened, recordDaily, refreshGoals, type SettleInfo, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
 } from './logic';
 import type { EventChoice } from './content';
 import type { ExpeditionRun, MatchResult, ProfileV1, SaveSlot, SettlementV1 } from './types';
@@ -162,7 +162,8 @@ export class ExpeditionDb {
       await req(rs.put(after.run, this.key));
       if (faults.crashAfterRunPut) throw new DbError('aborted', 'simulated crash after run write');
       if (after.profile !== profile) await req(ps.put(after.profile, PROFILE_KEY));
-      await req(ss.add(st));
+      // 用 put：同一個 id 留著一筆讀不懂的壞紀錄時，用這一筆蓋掉（讀得懂的重複結算在上面就擋掉了）
+      await req(ss.put(st));
       return { run: after.run, profile: after.profile, settlement: st, duplicate: false, goals: after.goals };
     });
   }
@@ -234,10 +235,15 @@ export class ExpeditionDb {
 
   /** 放棄整輪（玩家確認過）。結算紀錄留著。 */
   async discardRun(rev: number, knownIds: readonly string[]): Promise<void> {
-    return this.tx([S_RUN], 'readwrite', async (t) => {
-      const rs = t.objectStore(S_RUN);
+    return this.tx([S_RUN, S_PROFILE], 'readwrite', async (t) => {
+      const rs = t.objectStore(S_RUN), ps = t.objectStore(S_PROFILE);
       const run = this.must(await req(rs.get(this.key)), knownIds);
       if (run.revision !== rev) throw new RuleError('stale', 'run changed in another tab');
+      // 每日遠征打到一半放棄：也算今天打完了（沒過），不然可以一直放棄重來、打到滿意才計分
+      if (run.daily && run.phase !== 'cleared' && run.phase !== 'failed') {
+        const profile = this.mustProfile(await req(ps.get(PROFILE_KEY)), knownIds), after = recordDaily(profile, run);
+        if (after !== profile) await req(ps.put(refreshGoals(after).profile, PROFILE_KEY));
+      }
       await req(rs.delete(this.key));
     });
   }

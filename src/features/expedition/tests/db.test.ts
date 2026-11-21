@@ -94,8 +94,8 @@ describe('save file', () => {
   });
   it('a write that the browser refuses (quota) surfaces as a DbError and changes nothing', async () => {
     const { db, run } = await started();
-    // 結算的最後一步（寫結算紀錄）被瀏覽器拒絕
-    const add = vi.spyOn(IDBObjectStore.prototype, 'add').mockImplementationOnce(() => { throw new DOMException('full', 'QuotaExceededError'); });
+    // 結算要寫的時候被瀏覽器拒絕
+    const add = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => { throw new DOMException('full', 'QuotaExceededError'); });
     const err: unknown = await db.settle(mid(run), 'win', [5, 1], 1, IDS).catch((e: unknown) => e);
     expect(add).toHaveBeenCalledTimes(1);
     expect(err).toBeInstanceOf(DbError);
@@ -216,6 +216,12 @@ describe('save file: daily slot', () => {
     await daily.settle(mid(r), 'loss', [1, 5], 1, IDS);
     expect((await current(daily)).hearts).toBe(START_HEARTS - 1);
     expect((await current(db)).hearts).toBe(START_HEARTS);
+    // 打到一半放棄每日那一輪：今天算打完了（沒過），再開只是練習
+    const d2 = await current(daily);
+    await daily.discardRun(d2.revision, IDS);
+    const s = await db.load(IDS);
+    expect(s.kind === 'ok' && s.profile.daily && s.profile.daily.history).toEqual([{ date: '2026-11-21', score: -4, cleared: false }]);
+    await daily.createRun(newDailyRun(plan, plan.partners[0], 0, 'day2'), IDS);
     const dump = await db.exportAll();
     expect(dump.daily).toBeTruthy();
     expect(dump.run).toBeTruthy();

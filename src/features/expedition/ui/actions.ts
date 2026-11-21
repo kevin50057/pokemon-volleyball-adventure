@@ -172,7 +172,7 @@ export function fight(): Promise<void> {
     if (tint !== undefined) field.tint = tint;
     if (STATS.some((k) => mods[k] !== 1)) field.mods = mods;
     ui.matchSlot = slot;
-    const ok = match.start({ matchId: r2.matchId, p1: lead, p2: node.opp, score: node.score, field, cpuP1: ui.autoplay }, onEnd, onInterrupt);
+    const ok = match.start({ matchId: r2.matchId, p1: lead, p2: node.opp, score: setup.score, field, cpuP1: ui.autoplay }, onEnd, onInterrupt);
     if (!ok) { ui.note = T.busy; return; }
     ui.interrupted = false; ui.pausedHidden = false; ui.note = ''; ui.scenes = [];
     view.hide();
@@ -180,10 +180,9 @@ export function fight(): Promise<void> {
 }
 
 /** 結算。delay：存好之後等幾毫秒（讓場上的 GAME END 播一下）再離場、打開面板 */
-function settle(matchId: string, result: MatchResult, scores: [number, number], bossReached: number | undefined, delay: number): Promise<void> {
+function settle(slot: SaveSlot, matchId: string, result: MatchResult, scores: [number, number], bossReached: number | undefined, delay: number): Promise<void> {
   return guard(async () => {
-    // 結算到開打的那個存檔位，畫面也切回去
-    const slot = ui.matchSlot;
+    // 結算到開打的那個存檔位（呼叫時就定下來，「再試一次」也不會跑到另一邊），畫面也切回去
     ui.slot = slot; ui.tab = slot === 'daily' ? 'daily' : 'run';
     const db = await slotDb(slot);
     const out = await db.settle(matchId, result, scores, Date.now(), ids(), bossReached === undefined ? {} : { bossReached });
@@ -215,7 +214,7 @@ function settle(matchId: string, result: MatchResult, scores: [number, number], 
 
 const onEnd: match.OnEnd = (matchId, result, scores, info) => {
   // 分出勝負的那一幀就存（不等動畫），存好之後再顯示結果
-  void settle(matchId, result, scores, info.bossReached, 1900);
+  void settle(ui.matchSlot, matchId, result, scores, info.bossReached, 1900);
 };
 
 const onInterrupt: match.OnInterrupt = (why) => {
@@ -236,7 +235,7 @@ export function forfeit(): Promise<void> {
   const reached = live ? match.bossReached() : undefined;
   if (live) match.stop(true);
   else ui.matchSlot = ui.slot;
-  return settle(r.matchId, 'forfeit', scores, reached, 0);
+  return settle(ui.matchSlot, r.matchId, 'forfeit', scores, reached, 0);
 }
 
 export function resume(): void { ui.pausedHidden = false; match.resume(); view.hide(); }

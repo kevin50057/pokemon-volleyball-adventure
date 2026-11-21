@@ -72,7 +72,8 @@ export function start(spec: MatchSpec, onEnd: OnEnd, onInterrupt: OnInterrupt): 
   ph.player1.character = spec.p1; ph.player2.character = spec.p2;
   ph.player1.isComputer = !!spec.cpuP1; ph.player2.isComputer = true;
   if (c.isPracticeMode) c.isPracticeMode = false;
-  c.winningScore = spec.score;
+  // 首領戰打到首領的血歸零為止（血量可能因為難度、挑戰而比節點的勝分多）
+  c.winningScore = spec.field && spec.field.boss ? spec.field.boss.hp : spec.score;
   c.paused = false;
   c.slowMotionFramesLeft = 0;
   c.view.intro.visible = false;
@@ -167,14 +168,18 @@ export function installHooks(): void {
   hooks.gameLoop.use(gameLoopLayer);
   hooks.score.use(field.scoreLayer);
   hooks.ai.use(field.aiLayer);
-  // 切到背景：暫停並清空按鍵；回到前景要玩家明確按「繼續」（SPEC §5.2）
-  document.addEventListener('visibilitychange', () => {
+  // 離開畫面（切到背景、視窗失焦、頁面被收起來）：暫停並清空按鍵；回來要玩家明確按「繼續」（SPEC §5.2）。
+  // 失焦時鍵盤的 keyup 收不到，不清的話按鍵會卡住；不暫停的話比賽會在沒人操作的情況下繼續打。
+  const away = (): void => {
     const c = svc.ctrl;
-    if (!c || !S.spec || S.ended || document.visibilityState !== 'hidden') return;
+    if (!c || !S.spec || S.ended) return;
+    clearInputs(c);
+    if (S.hiddenPaused) return;
     c.paused = true;
     S.hiddenPaused = true;
-    clearInputs(c);
     const cb = S.onInterrupt; if (cb) cb('hidden');
-  });
-  window.addEventListener('blur', () => { const c = svc.ctrl; if (c && S.spec) clearInputs(c); });
+  };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') away(); });
+  window.addEventListener('blur', away);
+  window.addEventListener('pagehide', away);
 }

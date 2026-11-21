@@ -122,7 +122,7 @@ export function applySettlement(run: ExpeditionRun, profile: ProfileV1, matchId:
   // 羈絆值：上場贏一場 +1，菁英（只給機制卡的站）或首領 +2；學習裝置：備援也拿
   const gain = node.boss || node.reward === 'rare' ? BOND_BIG : BOND_WIN;
   const woke = addBond(next, lead, gain);
-  const backup = next.partyIds[1];
+  const backup = run.partyIds[1];        // 開打時的備援（這一場剛收服補進來的不算）
   const woke2 = backup && hasEffect(next.equippedCardIds, 'expShare') ? addBond(next, backup, gain) : null;
   if (woke || woke2) out.awakened = woke || woke2 || undefined;
 

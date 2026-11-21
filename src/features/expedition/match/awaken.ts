@@ -90,7 +90,8 @@ export function setup(c: Controller, char: string, color: string, names: Readonl
   A.glide = 0; A.still = 0; A.lastX = c.physics.player1.x; A.solar = false; A.karp = 0; A.prevOutrage = 0; A.coinTrip = false; A.vapLock = 0;
   A.touch2Edge = false; A.lastToucher = ''; A.shadow = false; A.bombSteered = false; A.mirrorUsed = false; A.prevMounds = 0; A.fired = 0;
   const opp = c.physics.player2.character;
-  // 整場都改的技能數值：只在對手不是同一隻時改（TUNING 兩邊共用）
+  // 整場都改的技能數值（TUNING 兩邊共用）：對手是同一隻、或是會變成同一隻的百變怪時不改
+  if (opp === 'ditto') return;
   if (A.char === 'magikarp' && opp !== 'magikarp') { setTuning('magikarpEvolveChance', 0); setTuning('magikarpReceiveEvolve', 0); }
   if (A.char === 'psyduck' && opp !== 'psyduck') setTuning('psyTrip', 0);
   if (A.char === 'bird' && opp !== 'bird') setTuning('birdChargeFlaps', 2);
@@ -114,7 +115,12 @@ export function step(c: Controller): boolean {
     A.prevScore0 = c.scores[0];
     if (c.roundEnded && A.flashGranted && (s.flashFire || 0) > 0) { s.flashFire = 0; A.flashGranted = false; }
   }
-  if (!isLive(c)) { A.touchEdge = A.spikeEdge = A.touch2Edge = false; return false; }
+  if (!isLive(c)) {
+    // 這一球結束了：必定麻痺的數值馬上還原，不帶進下一球
+    if (A.sureStatic) { A.sureStatic = false; restoreTuning('staticChance'); restoreTuning('staticStun'); }
+    A.touchEdge = A.spikeEdge = A.touch2Edge = false;
+    return false;
+  }
   const touch = p1.isCollisionWithBallHappened, newTouch = touch && !A.touchEdge;
   A.touchEdge = touch;
   const spike = touch && p1.state === 2 && ball.isPowerHit, newSpike = spike && !A.spikeEdge;
@@ -219,6 +225,7 @@ export function step(c: Controller): boolean {
   } else if (ch === 'electrode') {
     // 精準爆破：球路突變之後，往對手站的反方向偏（對手在後面就吊短、在前面就打深）
     if (!((s.bombTimer || 0) > 0)) A.bombSteered = false;
+    else if (A.lastToucher !== 'p1') A.bombSteered = true;      // 對手已經碰到球：不再導引
     else if (!A.bombSteered && (s.bombFrame || 0) >= 10 && ball.x > 226) {
       A.bombSteered = true;
       const p2 = ph.player2;

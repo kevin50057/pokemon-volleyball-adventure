@@ -238,6 +238,62 @@ const tests = {
   },
 };
 
+// 要玩家特定操作才會發動的覺醒：電腦照樣打，但測試替左邊按住指定的方向鍵。
+// 注意：左邊交給電腦時，電腦會自己改寫方向輸入，所以只有「電腦本來就會按的方向」測得到：
+// 小火龍（跳起來時電腦按著上）會判定；胖丁（空中按下）、水伊布（撲救留水窪）、火伊布（大字爆得分）只記錄次數。
+tests['awaken: powers that need player input'] = async function () {
+  const { ctx, page, errors } = await fresh();
+  await ready(page);
+  const out = await page.evaluate(async () => {
+    const E = PVA.expedition, k = PVA.svc.ctrl.keyboardArray[0], res = {};
+    // 小火龍：空中按住上滑翔；胖丁：空中按住下快速落地時殺球；水伊布：撲救留下的水窪把球彈起；火伊布：大字爆得分
+    const plan = [['charmander', 'upKey'], ['jigglypuff', null], ['vaporeon', null], ['flareon', null]];
+    for (const [lead, key] of plan) {
+      let fired = 0, n = 0;
+      for (; n < (key === 'upKey' ? 8 : 3) && fired === 0; n++) {
+        if (!E.soak(n % 2 ? 'k1' : 'warmup', lead, undefined, undefined, true, true, 0)) break;
+        const hold = setInterval(() => { if (key) { k[key].isDown = true; k[key].isUp = false; } }, 5);
+        const c = PVA.svc.ctrl; let f = 0;
+        while (f < 40000 && PVA.svc.expedition.playing() && (f < 5 || !c.gameEnded)) {
+          for (let i = 0; i < 200 && !c.gameEnded; i++) { if (key) { k[key].isDown = true; k[key].isUp = false; } c.gameLoop(); f++; }
+          await __sleep(0);
+        }
+        clearInterval(hold);
+        if (key) { k[key].isDown = false; k[key].isUp = true; }
+        fired += E.awakenFired();
+        E.soakStop(); await __sleep(30);
+      }
+      res[lead] = { fired, matches: n };
+    }
+    return res;
+  });
+  console.log('    ' + Object.entries(out).map(([k, v]) => k + ' ' + v.fired + ' (' + v.matches + ' 場)').join(', '));
+  expect(out.charmander.fired > 0, 'Charmander glide never fired while holding Up');
+  expect(!errors.length, 'page errors: ' + [...new Set(errors)].join(' | '));
+  await ctx.close();
+};
+
+// 兩個分頁：只有一個能寫；能寫的那個關掉之後，另一個不用重整就變成可以寫
+tests['tabs: write access moves to the other tab when the writer closes'] = async function () {
+  const { ctx, page, errors } = await fresh();
+  await ready(page);
+  const second = await ctx.newPage();
+  second.on('pageerror', (e) => { if (!IGNORE.test(String(e.message))) errors.push(String(e.message)); });
+  await second.addInitScript(HELPERS);
+  await second.goto(base + '?exp=1');
+  await second.evaluate(async () => { await __until(() => window.PVA && PVA.expedition && PVA.expedition.state().state, 30000); });
+  const before = await second.evaluate(() => PVA.expedition.state().canWrite);
+  expect(await page.evaluate(() => PVA.expedition.state().canWrite), 'first tab cannot write');
+  expect(!before, 'second tab can write while the first one holds the lock');
+  await page.close();
+  const after = await second.evaluate(async () => __until(() => PVA.expedition.state().canWrite, 10000));
+  expect(after, 'second tab did not get write access after the first one closed');
+  const started = await second.evaluate(async () => { await PVA.expedition.actions.startNewRun(); return __until(() => __run()); });
+  expect(started, 'second tab could not start a run after taking over');
+  expect(!errors.length, 'page errors: ' + [...new Set(errors)].join(' | '));
+  await ctx.close();
+};
+
 async function main() {
   server = await preview({ preview: { port: 0, strictPort: false }, logLevel: 'silent' });
   const addr = server.httpServer.address();

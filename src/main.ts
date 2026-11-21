@@ -14,7 +14,7 @@ import { init as initJuice, debug as juiceDebug } from './features/juice';
 import { init as initNetplay, debug as netDebug } from './features/netplay';
 import { init as initCharSelect } from './features/ui/char-select';
 import { init as initCampaign, debug as campaignDebug } from './features/campaign';
-import { init as initExpedition, debug as expeditionDebug } from './features/expedition';
+import { expeditionEnabled } from './features/expedition/env';
 import { init as initEdition } from './features/ui/edition';
 import { init as initKeybind, installKeyGuards } from './features/ui/keybind';
 import { startEngine } from './engine';
@@ -38,9 +38,14 @@ initJuice();
 initNetplay();
 initCharSelect();
 initCampaign();
-initExpedition();   // 預設關閉（網址 ?exp=1 才打開）；關閉時什麼都不做
 initEdition();
 initKeybind();
 startEngine();
 
-window.PVA = { svc, flags, hooks, setCustomRng, juice: juiceDebug, net: netDebug, campaign: campaignDebug, expedition: expeditionDebug };
+const pva: Record<string, unknown> = { svc, flags, hooks, setCustomRng, juice: juiceDebug, net: netDebug, campaign: campaignDebug };
+window.PVA = pva;
+
+// 遠征預設關閉（網址 ?exp=1 才打開）。關閉時連程式都不下載；打開時另外載入，掛勾照樣排在最外層（後面沒有別的功能再掛）
+if (expeditionEnabled()) {
+  void import('./features/expedition').then((m) => { m.init(); pva.expedition = m.debug; });
+}

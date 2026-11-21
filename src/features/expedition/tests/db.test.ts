@@ -121,6 +121,7 @@ describe('save file: rewards and captures', () => {
     await expect(db.pickReward(picked.revision, card, IDS)).rejects.toBeInstanceOf(RuleError);    // 已經選過
     const log = await db.settlementsOf('run-1');
     expect(log.length).toBe(1);
+    expect(await db.settlementsOf('run-')).toEqual([]);          // 只讀這一輪的（id 前綴要完全對上）
     expect(log[0].picked).toBe(card);
   });
   it('a crash while settling a win leaves no capture and no reward behind', async () => {

@@ -5,7 +5,7 @@ import { nextZ } from '../../../core/services';
 import type { CharacterId } from '../../../core/types';
 import type { Mods } from '../cards';
 import type { MechId } from '../content';
-import { acquireWriter } from '../env';
+import { acquireWriter, waitForWriter } from '../env';
 import * as match from '../match/adapter';
 import { awakenFired } from '../match/awaken';
 import { fired as mechFired } from '../match/mech';
@@ -61,6 +61,8 @@ export async function mount(): Promise<void> {
   }
 
   ui.canWrite = await acquireWriter();
+  // 另一個分頁拿著寫入權：排隊，那個分頁關掉之後這裡自動變成可以寫（不用重整）
+  if (!ui.canWrite) waitForWriter(() => { ui.canWrite = true; void actions.guard(actions.reload); });
   await actions.guard(actions.reload);
   // 重整前有一場打到一半：直接打開面板讓玩家重打（主線沒有的話看每日遠征）
   const r = run();

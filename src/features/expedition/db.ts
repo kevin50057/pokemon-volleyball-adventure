@@ -58,13 +58,17 @@ export type LoadState =
 export interface TestFaults { crashAfterRunPut?: boolean }
 
 export class ExpeditionDb {
-  private constructor(private db: IDBDatabase, private key: SaveSlot = 'current') {}
+  /** range：IDBKeyRange（瀏覽器內建；測試時由 fake-indexeddb 傳進來）。沒有就退回讀全部再篩 */
+  private constructor(private db: IDBDatabase, private key: SaveSlot = 'current', private range?: typeof IDBKeyRange) {}
 
   /** 同一個資料庫、另一個存檔位（每日遠征用 'daily'） */
-  forSlot(slot: SaveSlot): ExpeditionDb { return new ExpeditionDb(this.db, slot); }
+  forSlot(slot: SaveSlot): ExpeditionDb { return new ExpeditionDb(this.db, slot, this.range); }
   get slot(): SaveSlot { return this.key; }
 
-  static open(factory: IDBFactory | undefined = typeof indexedDB !== 'undefined' ? indexedDB : undefined, name = DB_NAME): Promise<ExpeditionDb> {
+  static open(
+    factory: IDBFactory | undefined = typeof indexedDB !== 'undefined' ? indexedDB : undefined, name = DB_NAME,
+    range: typeof IDBKeyRange | undefined = typeof IDBKeyRange !== 'undefined' ? IDBKeyRange : undefined,
+  ): Promise<ExpeditionDb> {
     return new Promise((resolve, reject) => {
       if (!factory) { reject(new DbError('unavailable', 'IndexedDB is not available')); return; }
       let r: IDBOpenDBRequest;
@@ -81,7 +85,7 @@ export class ExpeditionDb {
       r.onsuccess = () => {
         const db = r.result;
         db.onversionchange = () => db.close();   // 新版在另一個分頁打開：讓位
-        resolve(new ExpeditionDb(db));
+        resolve(new ExpeditionDb(db, 'current', range));
       };
     });
   }
@@ -95,7 +99,11 @@ export class ExpeditionDb {
       try { t = this.db.transaction(stores, mode); } catch (e) { reject(toDbError(e)); return; }
       let value: T, failed: unknown = null;
       t.oncomplete = () => { if (failed) reject(toDbError(failed)); else resolve(value); };
-      t.onabort = () => reject(toDbError(failed || t.error || new DbError('aborted', 'transaction aborted')));
+      // 瀏覽器自己中止（例如空間不足）時，t.error 才是原因；其他還在排隊的請求只會回 AbortError，不能拿來當原因
+      t.onabort = () => {
+        const own = t.error && t.error.name !== 'AbortError' ? t.error : null;
+        reject(toDbError(own || failed || t.error || new DbError('aborted', 'transaction aborted')));
+      };
       t.onerror = (ev) => { ev.preventDefault(); };   // 交給 onabort 統一處理
       fn(t).then((v) => { value = v; }, (e) => { failed = e; try { t.abort(); } catch { /* 已經結束 */ } });
     });
@@ -218,7 +226,9 @@ export class ExpeditionDb {
   /** 這一輪的結算紀錄，依時間排（日誌用） */
   async settlementsOf(runId: string): Promise<SettlementV1[]> {
     return this.tx([S_SETTLE], 'readonly', async (t) => {
-      const raw = await req(t.objectStore(S_SETTLE).getAll());
+      // 結算紀錄的 id 是「runId/matchId」：只讀這一輪的（不用每次把所有輪的紀錄都讀出來）
+      const store = t.objectStore(S_SETTLE);
+      const raw = await req(this.range ? store.getAll(this.range.bound(runId + '/', runId + '/￿')) : store.getAll());
       const all = Array.isArray(raw) ? raw.filter(isSettlement) : [];
       return all.filter((s) => s.runId === runId).sort((a, b) => a.revision - b.revision);
     });

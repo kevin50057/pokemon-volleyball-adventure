@@ -132,7 +132,7 @@ export function physics(c: Controller): void {
 export function scoreLayer(next: (ctrl: Controller, idx: 0 | 1) => number, ctrl: Controller, idx: 0 | 1): number {
   let pts = next(ctrl, idx);
   if (!F.spec) return pts;
-  pts = awaken.adjustScore(pts, idx, !!F.spec.boss);
+  pts = awaken.adjustScore(pts, idx);
   const r = F.rule;
   if (r && r.golden) {
     pts = RULE_CFG.gold.points;        // 固定 2 分（喵喵自己的「得 2 分」不會再疊上去）

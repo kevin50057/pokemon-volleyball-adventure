@@ -2,7 +2,7 @@
  * 測試共用的小工具：建一輪、打一場、拿 matchId／三選一、開測試用的資料庫（fake-indexeddb）。
  * 拿不到東西時直接丟錯（讓測試失敗），不用強制轉型。
  */
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import { CHARACTER_IDS } from '../../../core/types';
 import { nodeById } from '../content';
 import { ExpeditionDb } from '../db';
@@ -54,9 +54,9 @@ export class Walker {
 // ---------- 資料庫 ----------
 
 export async function freshDb(factory = new IDBFactory()): Promise<{ db: ExpeditionDb; factory: IDBFactory }> {
-  return { db: await ExpeditionDb.open(factory, 'test'), factory };
+  return { db: await ExpeditionDb.open(factory, 'test', IDBKeyRange), factory };
 }
-export function reopen(factory: IDBFactory): Promise<ExpeditionDb> { return ExpeditionDb.open(factory, 'test'); }
+export function reopen(factory: IDBFactory): Promise<ExpeditionDb> { return ExpeditionDb.open(factory, 'test', IDBKeyRange); }
 export async function current(db: ExpeditionDb): Promise<ExpeditionRun> {
   const s = await db.load(IDS);
   if (s.kind !== 'ok' || !s.run) throw new Error('no run: ' + s.kind);

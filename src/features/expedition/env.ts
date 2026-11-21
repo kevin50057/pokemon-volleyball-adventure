@@ -26,6 +26,20 @@ interface LockManagerLike {
 
 let writer: Promise<boolean> | null = null;
 
+/**
+ * 另一個分頁關掉、把寫入權讓出來的時候通知（排隊等鎖，拿到就一直持有）。
+ * 拿到之前不會呼叫；沒有 Web Locks 的瀏覽器一開始就能寫，不會呼叫。
+ */
+export function waitForWriter(onGranted: () => void): void {
+  const locks = (navigator as Navigator & { locks?: LockManagerLike }).locks;
+  if (!locks) return;
+  void locks.request('pva-expedition-writer', { ifAvailable: false }, () => {
+    writer = Promise.resolve(true);
+    onGranted();
+    return new Promise<void>(() => { /* 一直持有 */ });
+  }).catch(() => { /* 拿不到就維持唯讀 */ });
+}
+
 /** 拿這個分頁的寫入權（只拿一次，拿到就一直保留到關頁）。 */
 export function acquireWriter(): Promise<boolean> {
   if (writer) return writer;

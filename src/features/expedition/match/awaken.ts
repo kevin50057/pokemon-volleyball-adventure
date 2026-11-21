@@ -146,9 +146,11 @@ export function step(c: Controller): boolean {
     // 這一顆帶電的球被接到或落地（技能系統把 charged 清掉）：數值還原
     if (A.sureStatic && !s.charged && !newSpike) { A.sureStatic = false; restoreTuning('staticChance'); restoreTuning('staticStun'); }
   } else if (ch === 'vaporeon') {
-    // 自己場上的球從地面附近往上彈（水窪彈起來，不是任何人碰到）：改成完美舉球
+    // 球剛被水窪彈起來（技能把落在水窪上的球設成往上 15，而且水窪就在球底下）：改成完美舉球。
+    // 只看「往上彈」會把角色在地面附近的低手接球也算進去，所以要對到水窪
     if (A.vapLock > 0) A.vapLock--;
-    else if (!touch && !ph.player2.isCollisionWithBallHappened && ball.x < 216 && ball.y > 225 && ball.yVelocity < -5) {
+    else if (!touch && !ph.player2.isCollisionWithBallHappened && ball.x < 216 && ball.yVelocity === -15
+      && (s.puddles || []).some((pd) => Math.abs(ball.x - pd.x) < 22)) {
       perfectSet(ball, AWAKEN_CFG.setVy); fire(name, p1); changed = true; A.vapLock = 10;
     }
   } else if (ch === 'flareon') {
@@ -257,10 +259,10 @@ export function step(c: Controller): boolean {
   return changed;
 }
 
-/** 喵喵覺醒：得 2 分不靠機率——對手這一球踩過金幣、而你得分就是 2 分，否則 1 分（首領戰固定 1 分） */
-export function adjustScore(pts: number, idx: 0 | 1, boss: boolean): number {
+/** 喵喵覺醒：得 2 分不靠機率——對手這一球踩過金幣、而你得分就是 2 分，否則 1 分（首領戰也一樣，分數就是首領扣的血） */
+export function adjustScore(pts: number, idx: 0 | 1): number {
   if (A.char !== 'meowth' || idx !== 0) return pts;
-  return boss ? 1 : A.coinTrip ? 2 : 1;
+  return A.coinTrip ? 2 : 1;
 }
 
 /** 比賽結束 */

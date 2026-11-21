@@ -25,20 +25,34 @@ const HELPERS = `
 window.__sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 window.__until = async (fn, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await fn()) return true; await __sleep(50); } return false; };
 window.__run = () => { const s = PVA.expedition.state().state; return s && s.kind === 'ok' ? s.run : null; };
-// 快轉目前這一場到分出勝負；回傳 { f, stuck }
+// 快轉目前這一場到分出勝負；回傳 { f, stuck }。
+// 「卡住」是球真的停住不動 600 幀以上；兩邊電腦互相接得太好、一個回合打很久不算卡住（球一直在動），會繼續打。
 window.__ff = async (max = 60000) => {
-  const c = PVA.svc.ctrl; let f = 0;
+  const c = PVA.svc.ctrl; let f = 0, still = 0, px = NaN, py = NaN, frozen = false;
   for (let k = 0; k < 5; k++) { c.gameLoop(); f++; }
-  while (f < max && PVA.svc.expedition.playing() && !c.gameEnded) { for (let k = 0; k < 500 && !c.gameEnded; k++) { c.gameLoop(); f++; } await __sleep(0); }
-  return { f, stuck: !c.gameEnded && PVA.svc.expedition.playing(), scores: [c.scores[0], c.scores[1]] };
+  while (f < max && PVA.svc.expedition.playing() && !c.gameEnded && !frozen) {
+    for (let k = 0; k < 500 && !c.gameEnded; k++) {
+      c.gameLoop(); f++;
+      const b = c.physics.ball;
+      if (b.x === px && b.y === py) { if (++still >= 600) { frozen = true; break; } } else still = 0;
+      px = b.x; py = b.y;
+    }
+    await __sleep(0);
+  }
+  return { f, stuck: !c.gameEnded && PVA.svc.expedition.playing(), frozen, scores: [c.scores[0], c.scores[1]] };
 };
 // 開打、快轉、等結算寫完
 window.__fight = async () => {
   const E = PVA.expedition, before = __run().revision;
   await E.actions.fight();
   if (!PVA.svc.expedition.playing()) return { error: 'did not start: ' + E.state().note };
-  const res = await __ff();
-  if (res.stuck) return { error: 'stuck ' + JSON.stringify(res) };
+  let res = await __ff();
+  if (res.stuck && res.frozen) return { error: 'ball frozen ' + JSON.stringify(res) };
+  if (res.stuck) {
+    // 兩邊電腦互相接得到、一直打不完（球一直在動，不是卡住）：電腦對電腦才會這樣，按「放棄本場」往下走
+    await E.actions.forfeit();
+    res = { ...res, forfeited: true };
+  }
   const ok = await __until(() => { const r = __run(); return r && r.phase !== 'active' && r.revision > before + 1 && !PVA.svc.expedition.playing(); }, 12000);
   return ok ? res : { error: 'settlement did not finish' };
 };
@@ -53,7 +67,7 @@ window.__step = async () => {
   if (/^event/.test(n)) { await A.choose('leave'); return 'leave'; }
   if (/camp|supply/.test(n)) { await A.depart(); return 'depart'; }
   const res = await __fight();
-  return res.error ? 'error: ' + res.error : 'fight ' + n + ' ' + res.scores.join(':');
+  return res.error ? 'error: ' + res.error : 'fight ' + n + ' ' + res.scores.join(':') + (res.forfeited ? ' (CPU stalemate, forfeited)' : '');
 };
 `;
 
@@ -217,7 +231,7 @@ const tests = {
         const res = await __ff();
         fired[lead] = (fired[lead] || 0) + E.awakenFired();
         E.soakStop(); await __sleep(30);
-        if (res.stuck) bad.push(lead + '@' + node + ': stuck ' + res.scores.join(':'));
+        if (res.stuck && res.frozen) bad.push(lead + '@' + node + ': ball frozen ' + res.scores.join(':'));
         if (JSON.stringify(T) !== base) { bad.push(lead + '@' + node + ': tuning not restored'); Object.assign(T, JSON.parse(base)); }
         if (PVA.svc.ctrl.winningScore !== 15) bad.push(lead + '@' + node + ': winning score not restored');
       }
@@ -353,7 +367,8 @@ tests['evolve: the panel plays the evolution and shows the new form'] = async fu
 };
 
 async function main() {
-  server = await preview({ preview: { port: 0, strictPort: false }, logLevel: 'silent' });
+  // 固定從 8790 開始找（讓系統隨便挑可能挑到瀏覽器擋掉的連接埠，例如 1720）
+  server = await preview({ preview: { port: 8790, strictPort: false }, logLevel: 'silent' });
   const addr = server.httpServer.address();
   base = 'http://localhost:' + addr.port + server.config.base;
   for (const channel of ['chrome', 'msedge']) {

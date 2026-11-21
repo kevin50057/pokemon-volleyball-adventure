@@ -84,6 +84,7 @@ export const debug = {
   actions: {
     startNewRun: actions.startNewRun, startDaily: actions.startDaily, fight: actions.fight, pick: actions.pick, branch: actions.branch,
     depart: actions.depart, sendIn: actions.sendIn, swap: actions.swap, choose: actions.choose, switchTab: actions.switchTab,
+    forfeit: actions.forfeit,
   },
   /**
    * 電腦對電腦打某一站（不寫存檔），用來檢查場地規則會不會卡死。

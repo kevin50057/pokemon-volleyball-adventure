@@ -18,8 +18,8 @@ export const A = {
   tAt: null as number | null,
 };
 
-/** @pixi/sound 的底層物件上有 volume（core 的 SoundChannel 型別只列了 speed）。 */
-function centerVolume(s: SoundChannel): number { return (s.center as unknown as { volume: number }).volume; }
+/** @pixi/sound 的底層物件上的 volume（SoundChannel.center 的型別有列）。 */
+function centerVolume(s: SoundChannel): number { return s.center.volume; }
 
 type WindowWithWebkitAudio = Window & { webkitAudioContext?: typeof AudioContext };
 

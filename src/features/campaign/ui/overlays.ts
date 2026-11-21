@@ -1,7 +1,7 @@
 // 蓋在大廳上的全螢幕演出：收服動畫、通關動畫、通關證書
 import { svc } from '../../../core/services';
 import { CONF, FONT, STAGES, tierInfo, tierOf } from '../config';
-import { CH, charName } from '../chars';
+import { charInfo, charName } from '../chars';
 import { camp } from '../state';
 import type { Run } from '../state';
 import { cry, sfx } from '../sfx';
@@ -27,7 +27,7 @@ function overlay(cls: string, html: string): HTMLElement {
   return ov;
 }
 export function playAcquire(id: string, full: boolean, done: () => void): void {
-  const c = CH.byId[id];
+  const c = charInfo(id);
   S().innerHTML = '';
   const ov = overlay('acq', '<div class="rays"></div><div class="cap">' + T.acquired + '</div><div class="im"><i data-sp="' + id + '" data-st="5" data-c="sil"></i></div>' +
     '<div class="nm">' + esc(c.name) + '</div><div class="sk">' + T.skill + '<b style="color:' + c.color + '">' + esc(c.skill) + '</b></div><div class="fl"></div><div class="tap">' + T.tapContinue + '</div>');
@@ -54,7 +54,7 @@ function certificate(run: Run, tier: number): { url: string; name: string } | nu
   try {
     const cv = document.createElement('canvas'); cv.width = 960; cv.height = 540;
     // getContext 拿不到時下一行會丟例外，跟舊版一樣由 catch 回傳 null
-    const g = cv.getContext('2d') as CanvasRenderingContext2D, c = CH.byId[run.char], gr = g.createLinearGradient(0, 0, 0, 540);
+    const g = cv.getContext('2d') as CanvasRenderingContext2D, c = charInfo(run.char), gr = g.createLinearGradient(0, 0, 0, 540);
     gr.addColorStop(0, '#1b2a6b'); gr.addColorStop(0.6, '#4d6fd0'); gr.addColorStop(1, '#f2c26b');
     g.fillStyle = gr; g.fillRect(0, 0, 960, 540);
     g.strokeStyle = '#FFD54F'; g.lineWidth = 8; g.strokeRect(18, 18, 924, 504);
@@ -76,7 +76,7 @@ function certificate(run: Run, tier: number): { url: string; name: string } | nu
   } catch (e) { return null; }
 }
 export function playClear(run: Run, isRecord: boolean, done: () => void): void {
-  const c = CH.byId[run.char], tier = tierOf(run.lost), TI = tierInfo(tier);
+  const c = charInfo(run.char), tier = tierOf(run.lost), TI = tierInfo(tier);
   S().innerHTML = '';
   let beat = '';
   run.order.forEach(function (id) { beat += '<span><i data-sp="' + id + '" data-still></i></span>'; });

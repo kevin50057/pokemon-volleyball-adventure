@@ -20,8 +20,8 @@ export async function renderAudio(windows: AudioWindow[], gameEvents: GameSoundE
   const sounds = S.ctrlRef!.audio.sounds;
   async function buf(name: string): Promise<AudioBuffer | null> {
     if (buffers[name] !== undefined) return buffers[name];
-    // @pixi/sound 的底層物件有 url（core 的 SoundChannel 型別沒列）
-    const snd = sounds[name], url = snd && snd.center && (snd.center as unknown as { url?: string }).url;
+    // @pixi/sound 的底層物件有 url（SoundChannel.center 的型別有列）
+    const snd = sounds[name], url = snd && snd.center && snd.center.url;
     if (!url) return (buffers[name] = null);
     const ab = await (await fetch(url)).arrayBuffer();
     return (buffers[name] = await off.decodeAudioData(ab));

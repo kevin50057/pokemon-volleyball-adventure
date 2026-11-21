@@ -2,10 +2,10 @@
  * 遠征面板上用程式畫的圖：路線地圖（天色跟著進度從清晨走到夜晚）、收服演出、通關明信片。
  * 角色圖一律用遊戲既有的素材（選角面板的頭像），這裡只畫幾何圖形。純顯示，不碰存檔和規則。
  */
-import { svc } from '../../core/services';
-import { heart, label, star4 } from '../campaign/draw';
-import { FORK_OF, STOPS as STOPS1, matchNode, nodeById, type MatchNode } from './content';
-import { rngFor } from './rng';
+import { svc } from '../../../core/services';
+import { heart, label, star4 } from '../../campaign/draw';
+import { FORK_OF, STOPS as STOPS1, matchNode, nodeById, type MatchNode } from '../content';
+import { rngFor } from '../rng';
 
 type G = CanvasRenderingContext2D;
 
@@ -83,6 +83,8 @@ export interface MapModel {
   names: Record<string, string>;
   /** 窄螢幕：只標目前這一站（岔路時標兩個選項）的名字，字放大 */
   compact?: boolean;
+  /** 還不能看的站：畫成問號、不畫頭像 */
+  veiled?: readonly string[];
 }
 
 function stopIndex(id: string): number {
@@ -96,7 +98,8 @@ let STOPS: readonly (readonly string[])[] = STOPS1, DX = (1 - 2 * X0) / (STOPS1.
 function useStops(s: readonly (readonly string[])[] | undefined): void { STOPS = s || STOPS1; DX = (1 - 2 * X0) / (STOPS.length - 1); }
 function pos(id: string, w: number, h: number): [number, number] {
   const i = stopIndex(id), x = w * (X0 + DX * i), st = STOPS[i];
-  if (st.length > 1 && FORK_OF[id] === undefined) return [x, h * (st.indexOf(id) === 0 ? 0.33 : 0.78)];
+  // 岔路分出去的幾條：上下平均排開（兩條在 0.33／0.78，三條再加中間）
+  if (st.length > 1 && FORK_OF[id] === undefined) return [x, h * (0.33 + 0.45 * st.indexOf(id) / (st.length - 1))];
   // 一般站：微微上下起伏，比較像山路
   return [x, h * (0.56 + (i % 2 ? -0.04 : 0.04))];
 }
@@ -104,7 +107,8 @@ function pos(id: string, w: number, h: number): [number, number] {
 export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): void {
   useStops(m.stops);
   const here = stopIndex(m.nodeId), atFork = FORK_OF[m.nodeId] !== undefined, last = STOPS.length - 1;
-  const stageNow = m.chapter ? 2 + Math.floor(here * 2 / last) : Math.floor(here * 4 / last);
+  // 第一章從清晨走到夜晚，第二章從午後走到夜晚，第三章（洞窟）一直是夜晚
+  const stageNow = m.chapter && m.chapter >= 2 ? 4 : m.chapter ? 2 + Math.floor(here * 2 / last) : Math.floor(here * 4 / last);
   sky(g, w, h, m.ended ? 4 : stageNow, m.nums, t);
   const seen = (id: string): boolean => m.visited.indexOf(id) >= 0;
   // 岔路已經選了哪一條：沒選的那條變淡
@@ -126,7 +130,8 @@ export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): voi
   for (let i = 0; i + 1 < STOPS.length; i++) STOPS[i].forEach((a) => STOPS[i + 1].forEach((b) => seg(a, b)));
   // 站
   STOPS.forEach((st, si) => st.forEach((id) => {
-    const [x, y] = pos(id, w, h), n = nodeById(id), mn = m.resolve ? m.resolve(id) : matchNode(id);
+    const [x, y] = pos(id, w, h), n = nodeById(id), veil = !!m.veiled && m.veiled.indexOf(id) >= 0;
+    const mn = veil ? undefined : m.resolve ? m.resolve(id) : matchNode(id);
     const done = seen(id), cur = !m.ended && (m.nodeId === id || (atFork && FORK_OF[m.nodeId] === si));
     const big = !!(mn && mn.boss), r = big ? 15 : 12;
     g.save();
@@ -139,7 +144,8 @@ export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): voi
     }
     g.fillStyle = '#1d2140'; g.strokeStyle = done ? '#69F0AE' : cur ? '#FFD54F' : '#fff'; g.lineWidth = 2.2;
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
-    if (mn) drawFace(g, mn.opp, x, y, r * 1.7);
+    if (veil) label(g, '?', x, y + 0.5, 14, '#CE93D8');
+    else if (mn) drawFace(g, mn.opp, x, y, r * 1.7);
     else if (n && n.kind === 'supply') {   // 帳篷和營火
       g.fillStyle = '#FF8A65'; g.beginPath(); g.moveTo(x - 7, y + 5); g.lineTo(x - 1, y - 7); g.lineTo(x + 5, y + 5); g.closePath(); g.fill();
       g.fillStyle = '#4E2A1E'; g.beginPath(); g.moveTo(x - 3, y + 5); g.lineTo(x - 1, y - 1); g.lineTo(x + 1, y + 5); g.closePath(); g.fill();
@@ -211,6 +217,46 @@ export function drawCapture(g: G, w: number, h: number, f: number, t: number, nu
   return f > END + 26;
 }
 
+// ---------- 覺醒演出 ----------
+export interface AwakenScene {
+  char: string;
+  /** 光環的顏色 */
+  color: string;
+  title: string;
+  sub: string;
+  note: string;
+}
+/** f：從開始算起的幀數。光柱升起、光環往上飄、一陣閃光之後出現★和文字。回傳演完了沒。 */
+export function drawAwaken(g: G, w: number, h: number, f: number, t: number, nums: readonly number[], a: AwakenScene): boolean {
+  sky(g, w, h, 4, nums, t);
+  const cx = w / 2, cy = h * 0.58, k = Math.min(1, f / 24), END = 64;
+  g.save();
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(1, a.color);
+  g.globalAlpha = (0.28 + 0.12 * Math.sin(t / 6)) * k; g.fillStyle = gr; g.fillRect(cx - 34 * k, 0, 68 * k, h);
+  g.lineWidth = 2; g.strokeStyle = a.color;
+  for (let i = 0; i < 4; i++) {
+    const u = ((f + i * 9) % 36) / 36;
+    g.globalAlpha = (1 - u) * k; g.beginPath(); g.ellipse(cx, cy + 30 - u * 74, 36 - u * 10, 9 - u * 2.5, 0, 0, Math.PI * 2); g.stroke();
+  }
+  g.restore();
+  g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(cx, cy + 32, 28, 6, 0, 0, Math.PI * 2); g.fill();
+  const rise = Math.sin(Math.min(1, f / 20) * Math.PI / 2) * 8;
+  drawFace(g, a.char, cx, cy - rise, 62);
+  if (f > 18 && f < 36) {      // 閃光
+    g.save(); g.globalAlpha = Math.abs(Math.sin((f - 18) / 18 * Math.PI)) * 0.85; g.fillStyle = '#fff';
+    g.beginPath(); g.arc(cx, cy - rise, 34 + (f - 18), 0, Math.PI * 2); g.fill(); g.restore();
+  }
+  if (f >= 30) {
+    const s = Math.min(1, (f - 30) / 10);
+    for (let i = 0; i < 8; i++) { const ang = i * Math.PI / 4 + t / 40; star4(g, cx + Math.cos(ang) * (44 + s * 6), cy - rise + Math.sin(ang) * (26 + s * 4), 4 + 2 * s, i % 2 ? a.color : '#fff'); }
+    label(g, a.title, cx, h * 0.12, 16, a.color, 'center', w - 20);
+    label(g, a.sub, cx, h * 0.12 + 19, 10.5, '#fff', 'center', w - 20);
+    label(g, a.note, cx, h - 12, 9, '#E8EAF6', 'center', w - 20);
+  }
+  return f > END + 30;
+}
+
 // ---------- 明信片 ----------
 export interface Postcard {
   title: string; runName: string; headline: string; cleared: boolean;
@@ -218,6 +264,8 @@ export interface Postcard {
   hearts: number; maxHearts: number; lines: readonly string[]; date: string; nums: readonly number[];
   stops?: readonly (readonly string[])[];
   resolve?: (id: string) => MatchNode | undefined;
+  /** 這一輪覺醒過的夥伴（頭像旁加★） */
+  awakened?: readonly string[];
 }
 export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
   useStops(p.stops);
@@ -240,7 +288,10 @@ export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
   g.strokeStyle = p.cleared ? '#69F0AE' : '#FFAB91'; g.lineWidth = 2.5; g.beginPath(); g.arc(0, 0, 22, 0, Math.PI * 2); g.stroke();
   label(g, p.headline, 0, 0, 10, p.cleared ? '#69F0AE' : '#FFAB91', 'center', 40);
   g.restore();
-  p.party.forEach((id, i) => drawFace(g, id, 52 + i * 62, 96, i === 0 ? 68 : 52));
+  p.party.forEach((id, i) => {
+    drawFace(g, id, 52 + i * 62, 96, i === 0 ? 68 : 52);
+    if (p.awakened && p.awakened.indexOf(id) >= 0) star4(g, 52 + i * 62 + (i === 0 ? 26 : 20), 72, 6, '#FFD54F');
+  });
   for (let i = 0; i < p.maxHearts; i++) heart(g, 30 + i * 17, 144, 6.5, i < p.hearts);
   // 走過的路
   let x = 20;

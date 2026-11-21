@@ -1,31 +1,36 @@
 /**
  * 卡牌與羈絆的計算（純函式）。SPEC §4.1：依 ID 排序後相乘、最後做上下限；同一張卡不會重複生效。
  */
-import { BONDS, BOND_NEED, CAPS, MAX_CARD_SLOTS, CARDS, CHAR_TAG, cardById, type Stat, type Tag } from './content';
+import { BONDS, BOND_NEED, CAPS, MAX_CARD_SLOTS, CARDS, CHAR_TAG, cardById, hasEffect, type Stat, type Tag } from './content';
 import type { Rng } from './rng';
 
 export type Mods = Record<Stat, number>;
 export const STATS: readonly Stat[] = ['move', 'jump', 'spike', 'dive'];
+/** 依字母排序（發動中的羈絆照這個順序列出） */
+const TAGS: readonly Tag[] = ['fire', 'thunder', 'water', 'wind'];
 
-export function activeBonds(lead: string, equipped: readonly string[]): Tag[] {
+/** 發動中的羈絆。backup：備援夥伴（裝著學習裝置時，牠的標籤也算一個） */
+export function activeBonds(lead: string, equipped: readonly string[], backup?: string): Tag[] {
   const n: Record<Tag, number> = { thunder: 0, wind: 0, fire: 0, water: 0 };
   const t = CHAR_TAG[lead];
   if (t) n[t]++;
+  const bt = backup && backup !== lead && hasEffect(equipped, 'expShare') ? CHAR_TAG[backup] : undefined;
+  if (bt) n[bt]++;
   uniqueSorted(equipped).forEach((id) => { const c = cardById(id); if (c && c.tag) n[c.tag]++; });
-  return (Object.keys(n) as Tag[]).filter((k) => n[k] >= BOND_NEED).sort();
+  return TAGS.filter((k) => n[k] >= BOND_NEED);
 }
 
 function uniqueSorted(ids: readonly string[]): string[] { return Array.from(new Set(ids)).sort(); }
 
 /** 卡 × 羈絆（還沒乘角色本身、還沒做上下限） */
-export function cardMods(lead: string, equipped: readonly string[]): Mods {
+export function cardMods(lead: string, equipped: readonly string[], backup?: string): Mods {
   const m: Mods = { move: 1, jump: 1, spike: 1, dive: 1 };
   uniqueSorted(equipped).slice(0, MAX_CARD_SLOTS).forEach((id) => {
     const c = cardById(id);
     if (!c) return;
     STATS.forEach((s) => { const v = c.mods[s]; if (v !== undefined) m[s] *= v; });
   });
-  activeBonds(lead, equipped).forEach((tag) => { const b = BONDS[tag]; m[b.stat] *= b.mult; });
+  activeBonds(lead, equipped, backup).forEach((tag) => { const b = BONDS[tag]; m[b.stat] *= b.mult; });
   return m;
 }
 

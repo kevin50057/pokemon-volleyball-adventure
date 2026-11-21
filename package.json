@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "vite",
     "pages": "node scripts/gen-lang-pages.mjs",
-    "build": "npm run pages && tsc --noEmit && vite build",
+    "build": "npm run pages && npm run strict && tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "strict": "node scripts/check-strict.mjs",
+    "test": "npm run strict && vitest run",
     "preview": "vite preview"
   },
   "dependencies": {

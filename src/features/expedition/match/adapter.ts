@@ -9,12 +9,12 @@
  *
  * 比賽的修飾（場地規則、卡牌、首領…）都在 field.ts；spec.field 沒給的話比賽跟遊戲本體原本的一模一樣。
  */
-import { hooks } from '../../core/hooks';
-import { svc } from '../../core/services';
-import type { CharacterId, Controller, GameState } from '../../core/types';
+import { hooks } from '../../../core/hooks';
+import { svc } from '../../../core/services';
+import type { CharacterId, Controller, GameState } from '../../../core/types';
+import type { MatchResult } from '../types';
 import * as field from './field';
 import type { FieldSpec } from './field';
-import type { MatchResult } from './types';
 
 export interface MatchSpec {
   matchId: string;
@@ -27,8 +27,13 @@ export interface MatchSpec {
   cpuP1?: boolean;
 }
 
+/** 比賽結束時交出去的額外資訊 */
+export interface EndInfo {
+  /** 首領戰打到過的最高階段（沒有首領是 0） */
+  bossReached: number;
+}
 /** 分出勝負的那一幀呼叫一次 */
-export type OnEnd = (matchId: string, result: Exclude<MatchResult, 'forfeit'>, scores: [number, number]) => void;
+export type OnEnd = (matchId: string, result: Exclude<MatchResult, 'forfeit'>, scores: [number, number], info: EndInfo) => void;
 /** 比賽被打斷（切到背景、連線開始、玩家從選單按了重來…）。不算輸。 */
 export type OnInterrupt = (why: 'hidden' | 'left') => void;
 
@@ -51,6 +56,8 @@ const END_SHOW_FRAMES = 45;   // 約 1.8 秒；遊戲本體 70 幀後按殺球�
 
 export function playing(): boolean { return !!S.spec; }
 export function currentMatchId(): string | null { return S.spec ? S.spec.matchId : null; }
+/** 現在這一場的首領打到過的最高階段（放棄本場時用） */
+export function bossReached(): number { return field.bossReached(); }
 
 function netBusy(): boolean { const n = svc.net && svc.net.state; return !!(n && (n.phase !== 'off' || n.render)); }
 /** 其他模式正在用遊戲本體（冠軍之路、連線）：不能開打 */
@@ -136,7 +143,7 @@ function tickLayer(next: (c: Controller) => boolean | void, c: Controller): bool
       S.ended = true;
       const win = !!ph.player1.isWinner;
       const cb = S.onEnd;
-      if (cb) cb(spec.matchId, win ? 'win' : 'loss', [c.scores[0], c.scores[1]]);
+      if (cb) cb(spec.matchId, win ? 'win' : 'loss', [c.scores[0], c.scores[1]], { bossReached: field.bossReached() });
     } else if (++S.endFrames >= END_SHOW_FRAMES) {
       c.state = waitState;     // 停在場上，等畫面上的結算
     }

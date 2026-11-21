@@ -206,19 +206,29 @@ function ultimate(x: number, y: number, col: string, withStop: boolean, type?: s
 // ============================================================
 // 技能事件（技能系統呼叫；svc.fxEvent）
 // ============================================================
-/** 瞬移事件的內容：技能系統（與連線重播）一定帶數字座標。型別轉換只在這裡做一次。 */
+/** 瞬移事件的內容：技能系統（與連線重播）一定帶數字座標。這裡逐欄檢查，缺欄位（例如連線傳壞的資料）就不演出。 */
 interface ZipStartData { player: Player; dir: number }
 interface ZipEndData { player: Player; x0: number; x1: number; y: number }
+function zipStart(d: FxEventData): ZipStartData | null {
+  const { player, dir } = d;
+  return player && typeof dir === 'number' ? { player, dir } : null;
+}
+function zipEnd(d: FxEventData): ZipEndData | null {
+  const { player, x0, x1, y } = d;
+  return player && typeof x0 === 'number' && typeof x1 === 'number' && typeof y === 'number' ? { player, x0, x1, y } : null;
+}
 
 export function fxEvent(type: FxEventType, d: FxEventData): void {
   if (sim()) return;
   if (type === 'zipStart') {
-    const z = d as unknown as ZipStartData;
+    const z = zipStart(d);
+    if (!z) return;
     const p = z.player;
     sparks(p.x, p.y, z.dir > 0 ? Math.PI : 0, '#FFE14D', 6, 5);
     if (S.ctrlRef) sfxZip(S.ctrlRef);   // 位移技能不頓幀，否則整個畫面會卡一下
   } else if (type === 'zipEnd') {
-    const z = d as unknown as ZipEndData;
+    const z = zipEnd(d);
+    if (!z) return;
     sparks(z.x1, z.y, z.x1 > z.x0 ? 0 : Math.PI, '#FFE14D', 6, 5);
     makeGhosts(z.player, z.x0, z.x1, z.y);
   } else if (type === 'skill') {

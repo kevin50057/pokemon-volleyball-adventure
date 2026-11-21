@@ -26,9 +26,19 @@ import { drawBall } from './ball-gfx';
 import { net } from './net';
 import { invalidateRect } from './overlay';
 import { scorePoints } from './score';
-import { rt } from './state';
+import { pk, rt } from './state';
 import { tick } from './tick';
 import { TUNING } from './tuning';
+
+/** 對外的 AI 表：同樣的鍵，參數換成 core 的 SideState；實際狀態用技能系統自己的那一份 */
+function publicAi(): AbilitiesApi['ai'] {
+  const out: AbilitiesApi['ai'] = {};
+  Object.keys(AI).forEach((k) => {
+    const fn = AI[k];
+    out[k] = (p, ball, opp, input) => fn(p, ball, opp, input, rt.state[pk(p)]);
+  });
+  return out;
+}
 
 export function init(): void {
   // 每幀：舊版 _pvTick 沒有內層；這裡仍呼叫 next（最底層是遊戲本體的預設，什麼都不做）
@@ -53,9 +63,9 @@ export function init(): void {
 
   svc.abilities = {
     tuning: TUNING,
-    // AI 表內部用的是補上技能欄位的每邊狀態（AbilitySide）；外部拿到的 state() 也是同一批物件，
-    // 所以這裡把參數型別放寬成 core 的 SideState（只是型別，執行時是同一個表）
-    ai: AI as unknown as AbilitiesApi['ai'],
+    // AI 表內部用的是補上技能欄位的每邊狀態（AbilitySide）。對外包一層：呼叫端傳進來的狀態不用，
+    // 一律改用技能系統自己那一邊的狀態（執行時本來就是同一個物件），型別就不必硬轉
+    ai: publicAi(),
     state: function () { return rt.state; },
     net: net,
   };

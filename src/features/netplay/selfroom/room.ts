@@ -6,7 +6,7 @@
 import { anyBroker, pubAll, pubRaw } from './relay';
 import { closeRtc, connectRtc, onSignal, scheduleRetry } from './rtc';
 import { PREFIX } from './relay';
-import type { PeerState, SelfCtx, SelfRoom } from './types';
+import type { BrokerClient, PeerState, SelfCtx, SelfRoom, SignalMsg } from './types';
 import type { PeerInfo, PeersChange, PresencePatch, Room } from '../room-types';
 import { T } from '../text';
 
@@ -16,14 +16,8 @@ function now(): number { return performance.now(); }
 export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
   const me = ctx.me;
   const tp = PREFIX + '/' + name + '/p/', ts = PREFIX + '/' + name + '/s/';
-  // 方法在下面逐一補上（舊版也是先建物件再一個個掛函式），所以這裡先轉型
-  const R = {
-    name, mine: {}, seq: 0, peers: {}, fns: [], cfns: [], dead: false,
-    dirty: false, timer: 0, lastRelay: 0, lastFlush: 0, sigN: 0, pendingNotify: false, lastConn: null, iv: 0,
-    tp, ts,
-  } as unknown as SelfRoom;
 
-  R.subscribe = (c) => { try { c.cl!.subscribe([tp + '+', ts + me], { qos: 0 }); } catch (e) { /* 這個伺服器訂閱失敗：重連時會再訂一次 */ } };
+  function subscribe(c: BrokerClient): void { try { c.cl!.subscribe([tp + '+', ts + me], { qos: 0 }); } catch (e) { /* 這個伺服器訂閱失敗：重連時會再訂一次 */ } }
 
   function peerList(): PeerInfo[] {
     const list: PeerInfo[] = [Object.freeze({ peer: me, presence: R.mine, updatedAt: Date.now(), isMe: true, sameTab: true, kind: 'viewer', guest: false, by: null })];
@@ -42,16 +36,16 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
     });
   }
 
-  R.getPeer = (id) => {
+  function getPeer(id: string): PeerState {
     let p: PeerState | undefined = R.peers[id];
     if (!p) {
       p = R.peers[id] = { id, seq: -1, pub: null, seen: now(), pc: null, dc: null, dcOpen: false, dcSeen: 0, retryAt: 0, tries: 0, via: 'relay', sigSeen: {}, pendC: [] };
       if (!ctx.noRtc && me < id) connectRtc(ctx, R, p);   // id 比較小的那一方負責發起直連
     }
     return p;
-  };
+  }
 
-  R.onPresence = (id, msg, via) => {
+  function onPresence(id: string | undefined, msg: Record<string, unknown>, via: 'relay' | 'dc'): void {
     if (R.dead || typeof id !== 'string' || id.length > 24) return;
     if (msg.bye) { dropPeer(id); notify(); return; }
     const p = R.getPeer(id);
@@ -62,7 +56,7 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
     p.seq = n; p.via = via;
     p.pub = Object.freeze({ peer: id, presence: Object.freeze(msg.p as Record<string, unknown>), updatedAt: Date.now(), isMe: false, sameTab: false, kind: 'viewer', guest: false, by: null });
     notify();
-  };
+  }
 
   function dropPeer(id: string): void {
     const p = R.peers[id];
@@ -71,10 +65,10 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
     delete R.peers[id];
   }
 
-  R.onSignal = (msg) => { onSignal(ctx, R, msg); };
+  function handleSignal(msg: SignalMsg): void { onSignal(ctx, R, msg); }
 
   // ---------- 送出 ----------
-  R.flush = (force) => {
+  function flush(force: boolean): void {
     if (R.dead) return;
     R.dirty = false;
     const s = JSON.stringify({ n: ++R.seq, p: R.mine });
@@ -92,9 +86,9 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
       R.lastRelay = t;
       pubRaw(ctx, tp + me, s);
     }
-  };
+  }
 
-  R.presence = (patch: PresencePatch) => {
+  function presence(patch: PresencePatch): Promise<void> {
     if (R.dead) return Promise.reject({ code: 'invalid_argument', message: 'left' });
     const next: PresencePatch = Object.assign({}, R.mine);
     for (const k in patch) { if (patch[k] === null) delete next[k]; else next[k] = patch[k]; }
@@ -108,47 +102,49 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
       else R.timer = window.setTimeout(go, wait);
     }
     return Promise.resolve();
-  };
+  }
 
   // ---------- 維護：逾時、直連看門狗、重試 ----------
-  R.iv = window.setInterval(() => {
-    const t = now();
-    let changed = false;
-    Object.keys(R.peers).forEach((id) => {
-      const p = R.peers[id];
-      if (t - p.seen > 8000) { dropPeer(id); changed = true; return; }
-      if (p.dcOpen && t - p.dcSeen > 4000) { closeRtc(p); scheduleRetry(ctx, p); R.connChanged(); }   // 直連通道還開著但沒資料：當它壞了
-      if (p.retryAt && t > p.retryAt && !p.pc) { p.retryAt = 0; connectRtc(ctx, R, p); }
-    });
-    if (changed) notify();
-    if (t - R.lastRelay > 1000) R.flush(false);   // 心跳
-  }, 500);
+  function startTimer(): number {
+    return window.setInterval(() => {
+      const t = now();
+      let changed = false;
+      Object.keys(R.peers).forEach((id) => {
+        const p = R.peers[id];
+        if (t - p.seen > 8000) { dropPeer(id); changed = true; return; }
+        if (p.dcOpen && t - p.dcSeen > 4000) { closeRtc(p); scheduleRetry(ctx, p); R.connChanged(); }   // 直連通道還開著但沒資料：當它壞了
+        if (p.retryAt && t > p.retryAt && !p.pc) { p.retryAt = 0; connectRtc(ctx, R, p); }
+      });
+      if (changed) notify();
+      if (t - R.lastRelay > 1000) R.flush(false);   // 心跳
+    }, 500);
+  }
 
-  R.connected = () => {
+  function connected(): boolean {
     if (R.dead) return false;
     if (anyBroker(ctx)) return true;
     return Object.keys(R.peers).some((id) => R.peers[id].dcOpen);
-  };
-  R.connChanged = () => {
+  }
+  function connChanged(): void {
     const c = R.connected();
     if (c === R.lastConn) return;
     R.lastConn = c;
     R.cfns.forEach((f) => { try { f(c); } catch (e) { /* 呼叫端的錯誤不影響其他人 */ } });
-  };
-  R.info = () => {
+  }
+  function info(): string {
     const ids = Object.keys(R.peers), direct = ids.filter((id) => R.peers[id].dcOpen).length;
     const up = ctx.clients.filter((c) => c.up).length;
     return (ids.length ? (direct === ids.length ? T.linkDirect : direct ? T.linkMixed : T.linkRelay) : T.linkWait) + T.relays + up + '/' + ctx.clients.length;
-  };
+  }
 
   const api: Room = {
     name,
-    presence: R.presence,
+    presence,
     peers: peerList,
     onPeers(fn: (ch: PeersChange) => void) { R.fns.push(fn); window.setTimeout(notify, 0); return () => { R.fns = R.fns.filter((f) => f !== fn); }; },
     onConnection(fn: (ok: boolean) => void) { R.cfns.push(fn); window.setTimeout(() => { try { fn(R.connected()); } catch (e) { /* 同上 */ } }, 0); return () => { R.cfns = R.cfns.filter((f) => f !== fn); }; },
-    connected: R.connected,
-    info: R.info,
+    connected,
+    info,
     leave() {
       if (R.dead) return Promise.resolve();
       pubAll(ctx, tp + me, { bye: 1 });
@@ -161,7 +157,14 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
       return Promise.resolve();
     },
   };
-  R.api = api;
+  // 方法都是上面的具名函式（它們在被呼叫時才用到 R），所以物件可以一次建好，不用先轉型再一個個掛上去
+  const R: SelfRoom = {
+    name, mine: {}, seq: 0, peers: {}, fns: [], cfns: [], dead: false,
+    dirty: false, timer: 0, lastRelay: 0, lastFlush: 0, sigN: 0, pendingNotify: false, lastConn: null, iv: 0,
+    tp, ts,
+    subscribe, getPeer, onPresence, onSignal: handleSignal, flush, presence, connected, connChanged, info, api,
+  };
+  R.iv = startTimer();
   ctx.clients.forEach((c) => { if (c.up) R.subscribe(c); });
   return R;
 }

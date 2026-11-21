@@ -4,7 +4,7 @@
 // ============================================================
 import { CFG, RULES, STAGES, ZONE_START, ruleFor, tierInfo, tierOf, zoneIdx, zoneOf } from '../config';
 import type { RuleId } from '../config';
-import { CH, charName, typeName } from '../chars';
+import { CH, charInfo, charName, typeName } from '../chars';
 import { camp, save } from '../state';
 import type { LoseInfo, Run } from '../state';
 import { howToGet, medalCount, medalTier, owned, ownedCount } from '../save';
@@ -75,7 +75,7 @@ function pickHtml(): string {
     h += '<div class="pc' + (owned(c.id) ? '' : ' lk') + (sel === c.id ? ' sel' : '') + '" data-pick="' + c.id + '"><i data-sp="' + c.id + '" data-still></i>' +
       (t ? '<span class="md" style="color:' + tierInfo(t).color + '">★</span>' : '') + '</div>';
   });
-  const c = CH.byId[sel], has = owned(sel), m = save.medals[sel], t2 = medalTier(sel);
+  const c = charInfo(sel), has = owned(sel), m = save.medals[sel], t2 = medalTier(sel);
   h += '</div><div class="det" style="--tc:' + c.color + '"><div class="big"><i data-sp="' + sel + '" data-c="' + (has ? '' : 'sil') + '"></i></div>';
   if (has) {
     h += '<div class="nm">' + esc(c.name) + '<span class="ty" style="background:' + c.color + '">' + esc(typeName(c.type)) + '</span></div><div class="sk" style="color:' + c.color + '">' + esc(c.skill) + '</div>' +
@@ -99,7 +99,7 @@ function ruleHtml(id: RuleId | null): string {
 }
 // 只在 save.run 有值時呼叫（render() 會先擋掉）
 function vsHtml(): string {
-  const run = save.run as Run, idx = run.idx, z = zoneOf(idx), me = CH.byId[run.char], opp = CH.byId[run.order[idx]], B = CFG.boss;
+  const run = save.run as Run, idx = run.idx, z = zoneOf(idx), me = charInfo(run.char), opp = charInfo(run.order[idx]), B = CFG.boss;
   const tip = firstLine(opp.desc);
   const rule = z.boss ? fmt(T.bossRule, { boss: boss(), hp: B.hp, php: B.playerHp }) + (run.bossPhase > 1 ? fmt(T.bossRuleFrom, { p: run.bossPhase }) : '')
     : fmt(T.stageRule, { n: z.score as number }) + (idx === 0 ? T.tutorialRule : '');

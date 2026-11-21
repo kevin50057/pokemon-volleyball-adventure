@@ -21,7 +21,9 @@ export function routeOf(seed: string): Record<string, Pick> {
     const c = chapterOf(f.id);
     if (c !== ch) { ch = c; used = new Set<string>(); }
     const rng = rngFor(seed, f.id, 'route');
-    const rules = RULE_POOL.slice();
+    // 這個岔路的規則池（第三章多了重力場）；兩個選項的規則不重複
+    const first = f.options.map((id) => matchNode(id)).find((n) => n && n.slot);
+    const rules = ((first && first.slot && first.slot.rules) || RULE_POOL).slice();
     f.options.forEach((id) => {
       const t = matchNode(id);
       if (!t || !t.slot) return;

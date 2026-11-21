@@ -8,15 +8,16 @@
  */
 import {
   RuleError, applySettlement, beginMatch as ruleBegin, chooseBranch as ruleBranch, leaveSupply as ruleSupply,
-  makeSettlement, newProfile, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
+  makeSettlement, newProfile, noteAwakened, type SettleInfo, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
 } from './logic';
 import type { EventChoice } from './content';
-import type { ExpeditionRun, MatchResult, ProfileV1, SettlementV1 } from './types';
+import type { ExpeditionRun, MatchResult, ProfileV1, SaveSlot, SettlementV1 } from './types';
 
 export const DB_NAME = 'pva-expedition';
 const DB_VERSION = 1;
 const S_PROFILE = 'profile', S_RUN = 'run', S_SETTLE = 'settlements', S_QUAR = 'quarantine';
-const KEY = 'current';
+/** profile 只有一份；run 依存檔位（主線、每日遠征）各存一份 */
+const PROFILE_KEY = 'current';
 
 export type DbErrorCode = 'unavailable' | 'quota' | 'version' | 'blocked' | 'aborted' | 'unknown';
 export class DbError extends Error {
@@ -34,11 +35,19 @@ function toDbError(e: unknown): DbError | RuleError {
   return new DbError('unknown', msg, e);
 }
 
-function req<T>(r: IDBRequest<T>): Promise<T> {
+/** IndexedDB 的請求。讀出來的東西一律當成 unknown，用之前要經過檢查（validate*、isSettlement） */
+function req(r: IDBRequest): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result);
+    r.onsuccess = () => { const v: unknown = r.result; resolve(v); };
     r.onerror = () => reject(r.error);
   });
+}
+/** 存檔裡的結算紀錄（自己寫進去的；這裡只確認形狀，壞掉的就當作沒有） */
+function isSettlement(v: unknown): v is SettlementV1 {
+  if (!v || typeof v !== 'object') return false;
+  const o: { [k: string]: unknown } = { ...v };
+  return typeof o.id === 'string' && typeof o.runId === 'string' && typeof o.matchId === 'string' && typeof o.nodeId === 'string'
+    && (o.result === 'win' || o.result === 'loss' || o.result === 'forfeit') && Array.isArray(o.scores) && typeof o.revision === 'number';
 }
 
 export type LoadState =
@@ -49,7 +58,11 @@ export type LoadState =
 export interface TestFaults { crashAfterRunPut?: boolean }
 
 export class ExpeditionDb {
-  private constructor(private db: IDBDatabase) {}
+  private constructor(private db: IDBDatabase, private key: SaveSlot = 'current') {}
+
+  /** 同一個資料庫、另一個存檔位（每日遠征用 'daily'） */
+  forSlot(slot: SaveSlot): ExpeditionDb { return new ExpeditionDb(this.db, slot); }
+  get slot(): SaveSlot { return this.key; }
 
   static open(factory: IDBFactory | undefined = typeof indexedDB !== 'undefined' ? indexedDB : undefined, name = DB_NAME): Promise<ExpeditionDb> {
     return new Promise((resolve, reject) => {
@@ -89,19 +102,19 @@ export class ExpeditionDb {
   }
 
   async load(knownIds: readonly string[]): Promise<LoadState> {
-    return this.tx([S_PROFILE, S_RUN], 'readonly', async (t) => {
-      const rawP = await req(t.objectStore(S_PROFILE).get(KEY));
-      const rawR = await req(t.objectStore(S_RUN).get(KEY));
+    return this.tx([S_PROFILE, S_RUN], 'readonly', async (t): Promise<LoadState> => {
+      const rawP = await req(t.objectStore(S_PROFILE).get(PROFILE_KEY));
+      const rawR = await req(t.objectStore(S_RUN).get(this.key));
       let profile = newProfile();
       if (rawP !== undefined) {
         const p = validateProfile(rawP, knownIds);
-        if (!p.ok) return { kind: p.reason, what: 'profile', detail: p.detail, raw: rawP } as LoadState;
+        if (!p.ok) return { kind: p.reason, what: 'profile', detail: p.detail, raw: rawP };
         profile = p.value;
       }
-      if (rawR === undefined) return { kind: 'ok', profile, run: null } as LoadState;
+      if (rawR === undefined) return { kind: 'ok', profile, run: null };
       const r = validateRun(rawR, knownIds);
-      if (!r.ok) return { kind: r.reason, what: 'run', detail: r.detail, raw: rawR } as LoadState;
-      return { kind: 'ok', profile, run: r.value } as LoadState;
+      if (!r.ok) return { kind: r.reason, what: 'run', detail: r.detail, raw: rawR };
+      return { kind: 'ok', profile, run: r.value };
     });
   }
 
@@ -109,14 +122,14 @@ export class ExpeditionDb {
   async createRun(run: ExpeditionRun, knownIds: readonly string[]): Promise<ExpeditionRun> {
     return this.tx([S_PROFILE, S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN), ps = t.objectStore(S_PROFILE);
-      const old = await req(rs.get(KEY));
+      const old = await req(rs.get(this.key));
       if (old !== undefined) {
         const v = validateRun(old, knownIds);
         if (!v.ok) throw new RuleError('invalid', 'existing run is ' + v.reason + '; quarantine it first');
         if (v.value.phase !== 'cleared' && v.value.phase !== 'failed') throw new RuleError('phase', 'a run is still in progress');
       }
-      if ((await req(ps.get(KEY))) === undefined) await req(ps.put(newProfile(), KEY));
-      await req(rs.put(run, KEY));
+      if ((await req(ps.get(PROFILE_KEY))) === undefined) await req(ps.put(newProfile(), PROFILE_KEY));
+      await req(rs.put(run, this.key));
       return run;
     });
   }
@@ -125,9 +138,9 @@ export class ExpeditionDb {
   async beginMatch(rev: number, knownIds: readonly string[]): Promise<ExpeditionRun> {
     return this.tx([S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN);
-      const run = this.must(await req(rs.get(KEY)), knownIds);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
       const next = ruleBegin(run, rev);
-      if (next !== run) await req(rs.put(next, KEY));
+      if (next !== run) await req(rs.put(next, this.key));
       return next;
     });
   }
@@ -136,21 +149,21 @@ export class ExpeditionDb {
    * 結算一場。同一個 matchId 已經結算過就直接回傳那一筆（duplicate: true），不再改任何東西。
    * profile、run、settlement 在同一個 transaction 裡寫。
    */
-  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], faults: TestFaults = {}): Promise<{ run: ExpeditionRun; profile: ProfileV1; settlement: SettlementV1; duplicate: boolean }> {
+  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], info: SettleInfo = {}, faults: TestFaults = {}): Promise<{ run: ExpeditionRun; profile: ProfileV1; settlement: SettlementV1; duplicate: boolean; goals: string[] }> {
     return this.tx([S_PROFILE, S_RUN, S_SETTLE], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE), ps = t.objectStore(S_PROFILE);
-      const run = this.must(await req(rs.get(KEY)), knownIds);
-      const profile = this.mustProfile(await req(ps.get(KEY)), knownIds);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
+      const profile = this.mustProfile(await req(ps.get(PROFILE_KEY)), knownIds);
       const sid = settlementIdOf(run.runId, matchId);
-      const done = await req(ss.get(sid)) as SettlementV1 | undefined;
-      if (done) return { run, profile, settlement: done, duplicate: true };
-      const after = applySettlement(run, profile, matchId, result);
+      const done = await req(ss.get(sid));
+      if (isSettlement(done)) return { run, profile, settlement: done, duplicate: true, goals: [] };
+      const after = applySettlement(run, profile, matchId, result, scores, info);
       const st = makeSettlement(run, after, matchId, result, scores, now);
-      await req(rs.put(after.run, KEY));
+      await req(rs.put(after.run, this.key));
       if (faults.crashAfterRunPut) throw new DbError('aborted', 'simulated crash after run write');
-      if (after.profile !== profile) await req(ps.put(after.profile, KEY));
+      if (after.profile !== profile) await req(ps.put(after.profile, PROFILE_KEY));
       await req(ss.add(st));
-      return { run: after.run, profile: after.profile, settlement: st, duplicate: false };
+      return { run: after.run, profile: after.profile, settlement: st, duplicate: false, goals: after.goals };
     });
   }
 
@@ -158,28 +171,45 @@ export class ExpeditionDb {
   private change(knownIds: readonly string[], fn: (run: ExpeditionRun) => ExpeditionRun): Promise<ExpeditionRun> {
     return this.tx([S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN);
-      const run = this.must(await req(rs.get(KEY)), knownIds);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
       const next = fn(run);
-      if (next !== run) await req(rs.put(next, KEY));
+      if (next !== run) await req(rs.put(next, this.key));
       return next;
     });
   }
-  chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleBranch(r, rev, option)); }
+  /** 會讀 profile 的變更（夢幻的門、卡池）：profile 和 run 在同一個 transaction 裡讀；有人覺醒就記進圖鑑 */
+  private changeWithProfile(knownIds: readonly string[], fn: (run: ExpeditionRun, profile: ProfileV1) => ExpeditionRun): Promise<ExpeditionRun> {
+    return this.tx([S_RUN, S_PROFILE], 'readwrite', async (t) => {
+      const rs = t.objectStore(S_RUN);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
+      const ps = t.objectStore(S_PROFILE);
+      const profile = this.mustProfile(await req(ps.get(PROFILE_KEY)), knownIds);
+      const next = fn(run, profile);
+      if (next !== run) await req(rs.put(next, this.key));
+      const seen = noteAwakened(profile, next);
+      if (seen) await req(ps.put(seen.profile, PROFILE_KEY));
+      return next;
+    });
+  }
+  chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.changeWithProfile(knownIds, (r, p) => ruleBranch(r, rev, option, p)); }
   leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
   setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
   swapIn(rev: number, benchId: string, out: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSwap(r, rev, benchId, out)); }
-  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[], cardId?: string): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice, cardId)); }
+  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[], arg?: string): Promise<ExpeditionRun> { return this.changeWithProfile(knownIds, (r, p) => ruleEvent(r, rev, choice, arg, p.cardPool || [])); }
 
   /** 三選一：選卡（或略過）和結算紀錄上的 picked 在同一個 transaction 裡寫 */
   async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> {
-    return this.tx([S_RUN, S_SETTLE], 'readwrite', async (t) => {
-      const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE);
-      const run = this.must(await req(rs.get(KEY)), knownIds);
+    return this.tx([S_RUN, S_SETTLE, S_PROFILE], 'readwrite', async (t) => {
+      const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE), ps = t.objectStore(S_PROFILE);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
       const next = rulePick(run, rev, cardId);
-      const sid = (run.pendingReward as { settlementId: string }).settlementId;
-      const st = await req(ss.get(sid)) as SettlementV1 | undefined;
-      await req(rs.put(next, KEY));
-      if (st) await req(ss.put({ ...st, picked: cardId }));
+      // 補位的「親密度 +1」讓誰覺醒了：記進圖鑑（看過覺醒）
+      const profile = this.mustProfile(await req(ps.get(PROFILE_KEY)), knownIds), seen = noteAwakened(profile, next);
+      if (seen) await req(ps.put(seen.profile, PROFILE_KEY));
+      const sid = run.pendingReward ? run.pendingReward.settlementId : '';
+      const st = sid ? await req(ss.get(sid)) : undefined;
+      await req(rs.put(next, this.key));
+      if (isSettlement(st)) await req(ss.put({ ...st, picked: cardId }));
       return next;
     });
   }
@@ -187,7 +217,8 @@ export class ExpeditionDb {
   /** 這一輪的結算紀錄，依時間排（日誌用） */
   async settlementsOf(runId: string): Promise<SettlementV1[]> {
     return this.tx([S_SETTLE], 'readonly', async (t) => {
-      const all = await req(t.objectStore(S_SETTLE).getAll()) as SettlementV1[];
+      const raw = await req(t.objectStore(S_SETTLE).getAll());
+      const all = Array.isArray(raw) ? raw.filter(isSettlement) : [];
       return all.filter((s) => s.runId === runId).sort((a, b) => a.revision - b.revision);
     });
   }
@@ -195,9 +226,9 @@ export class ExpeditionDb {
   /** 壞檔或不支援的 run：原封不動搬進 quarantine（之後可匯出），再清掉目前的 run。 */
   async quarantineRun(note: string): Promise<void> {
     return this.tx([S_RUN, S_QUAR], 'readwrite', async (t) => {
-      const raw = await req(t.objectStore(S_RUN).get(KEY));
+      const raw = await req(t.objectStore(S_RUN).get(this.key));
       if (raw !== undefined) await req(t.objectStore(S_QUAR).add({ at: Date.now(), note, raw }));
-      await req(t.objectStore(S_RUN).delete(KEY));
+      await req(t.objectStore(S_RUN).delete(this.key));
     });
   }
 
@@ -205,17 +236,18 @@ export class ExpeditionDb {
   async discardRun(rev: number, knownIds: readonly string[]): Promise<void> {
     return this.tx([S_RUN], 'readwrite', async (t) => {
       const rs = t.objectStore(S_RUN);
-      const run = this.must(await req(rs.get(KEY)), knownIds);
+      const run = this.must(await req(rs.get(this.key)), knownIds);
       if (run.revision !== rev) throw new RuleError('stale', 'run changed in another tab');
-      await req(rs.delete(KEY));
+      await req(rs.delete(this.key));
     });
   }
 
   /** 全部原始資料（匯出、診斷用）。 */
   async exportAll(): Promise<Record<string, unknown>> {
     return this.tx([S_PROFILE, S_RUN, S_SETTLE, S_QUAR], 'readonly', async (t) => ({
-      profile: await req(t.objectStore(S_PROFILE).get(KEY)),
-      run: await req(t.objectStore(S_RUN).get(KEY)),
+      profile: await req(t.objectStore(S_PROFILE).get(PROFILE_KEY)),
+      run: await req(t.objectStore(S_RUN).get('current')),
+      daily: await req(t.objectStore(S_RUN).get('daily')),
       settlements: await req(t.objectStore(S_SETTLE).getAll()),
       quarantine: await req(t.objectStore(S_QUAR).getAll()),
     }));

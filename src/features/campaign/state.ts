@@ -100,7 +100,7 @@ export const camp: CampState = {
 
 export function ctrlOf(): Controller | null { return svc.ctrl; }
 export function AB(): AbilitiesApi | undefined { return svc.abilities; }
-export function netBusy(): boolean { const n = svc.net && svc.net.state; return !!(n && (n.phase !== 'off' || n.render)); }
+export function netBusy(): boolean { const n = svc.net && svc.net.state; return !!(n && (n.phase !== 'off' || n.render)) || !!(svc.expedition && svc.expedition.playing()); }
 export function ensureGame(): void {
   if (ctrlOf()) return;
   const box = document.getElementById('about-box'), btn = document.getElementById('close-about-btn');

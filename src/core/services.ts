@@ -111,6 +111,8 @@ export interface Services {
   net?: NetApi;
   charSelect?: CharSelectApi;
   campaign?: CampaignApi;
+  /** 關都遠征（開發中，開關打開才有） */
+  expedition?: { playing(): boolean };
   keys?: KeysApi;
   touchKeys?: { 1: TouchKeySet; 2: TouchKeySet };
 }

@@ -16,7 +16,8 @@ import { bar, heart, label, slam } from '../campaign/draw';
 import { sfx } from '../campaign/sfx';
 import { CHARS } from '../characters';
 import { capped, type Mods } from './cards';
-import { LAPSE_FRAMES, MAX_BALL_SPEED, RULE_CFG, START_HEARTS, type BossDef, type Diff, type RuleId } from './content';
+import * as mech from './mech';
+import { LAPSE_FRAMES, MAX_BALL_SPEED, RULE_CFG, START_HEARTS, type BossDef, type Diff, type MechId, type RuleId } from './content';
 import { T } from './texts';
 
 const W = 432, H = 304, NET_X = 216, FLOOR_Y = 270, GROUND_Y = 244, BALL_GROUND = 252;
@@ -27,6 +28,8 @@ export interface FieldSpec {
   rule?: RuleId;
   diff?: Diff;
   mods?: Mods;
+  /** 裝備中的機制卡 */
+  mechs?: MechId[];
   boss?: BossDef;
   /** 場地染色（時段氣氛） */
   tint?: number;
@@ -60,6 +63,7 @@ export function begin(c: Controller, spec: FieldSpec): void {
   F.boss = spec.boss ? { phase: 1, pending: false, cut: 0, hit: 0, hurt: 0, s0: 0, s1: 0, acc: 0, flash: 0 } : null;
   F.ai = { mine: false, freeze: 0, acc: 0, noSpike: false };
   F.hitEdge = false; F.tick = 0;
+  mech.setup(spec.mechs);
   flags.goldBall = false;
   if (spec.boss) setTint(c, BOSS_TINT[0]); else if (spec.tint !== undefined) setTint(c, spec.tint);
 }
@@ -141,6 +145,7 @@ export function physics(c: Controller): void {
   if (!spec) return;
   const ph = c.physics, p1 = ph.player1, ball = ph.ball;
   if (spec.mods) applyMods(p1, ball, spec.mods);
+  mech.step(c, T.mechPop as Record<MechId, string>);
   const live = c.state === c.round && !c.roundEnded && !c.gameEnded;
   const r = F.rule;
   if (r) rulePhysics(c, r);
@@ -200,7 +205,9 @@ function rulePhysics(c: Controller, r: RuleState): void {
   const ph = c.physics, ball = ph.ball;
   if (c.state === c.round && r.prev !== c.round) {           // 新的一球
     r.touched = false;
-    r.golden = r.id === 'gold' && r.rally % RULE_CFG.gold.every === RULE_CFG.gold.first;
+    // 氣象球：黃金球變成每 3 球一次
+    const every = mech.has('weatherBall') ? 3 : RULE_CFG.gold.every;
+    r.golden = r.id === 'gold' && r.rally % every === RULE_CFG.gold.first % every;
     r.rally++;
   }
   r.prev = c.state;
@@ -218,7 +225,7 @@ function rulePhysics(c: Controller, r: RuleState): void {
     } else if (r.spawn <= 0) r.spawn = 25;
     for (let i = r.puddles.length - 1; i >= 0; i--) if (++r.puddles[i].t > Rn.warn + Rn.life) r.puddles.splice(i, 1);
     // 球下一幀就會落地：落點在生效的水窪上就彈起來
-    if (ball.yVelocity > 0 && ball.y + ball.yVelocity > BALL_GROUND) {
+    if (ball.yVelocity > 0 && ball.y + ball.yVelocity > BALL_GROUND && !(mech.weatherSpares() && ball.x > NET_X)) {
       const nx = ball.x + ball.xVelocity;
       for (let j = 0; j < r.puddles.length; j++) {
         const pd = r.puddles[j];
@@ -233,11 +240,11 @@ function rulePhysics(c: Controller, r: RuleState): void {
       }
     }
   } else if (r.id === 'lowgrav') {
-    if (lowgravOn(r.rt) && air && r.rt % 2 === 0) ball.yVelocity -= 1;
+    if (lowgravOn(r.rt) && air && r.rt % 2 === 0 && !mech.weatherSpares()) ball.yVelocity -= 1;
   } else if (r.id === 'wind') {
     const Lw = RULE_CFG.wind, k = r.rt % Lw.period;
     if (k === Lw.warnAt) { r.dir = Math.random() < 0.5 ? -1 : 1; sfx('wind'); }
-    if (windOn(r.rt) && r.touched && air && r.rt % Lw.every === 0) ball.xVelocity = Math.max(-30, Math.min(30, ball.xVelocity + r.dir));
+    if (windOn(r.rt) && r.touched && air && r.rt % Lw.every === 0 && !mech.weatherSpares()) ball.xVelocity = Math.max(-30, Math.min(30, ball.xVelocity + r.dir));
   }
 }
 
@@ -337,11 +344,13 @@ export function drawHud(c: Controller): void {
       label(g, T.phase2Note, NET_X, 150, 13, '#fff');
     }
     if (b.flash > 0) { if (!lite) { g.globalAlpha = 0.5 * b.flash / 6; g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.globalAlpha = 1; } b.flash--; }
+    mech.drawMech(g, c, label);
     return;
   }
   for (let h2 = 0; h2 < START_HEARTS; h2++) heart(g, NET_X - 14 + h2 * 14, 14, 5.5, h2 < spec.hearts);
   label(g, spec.title, NET_X, 30, 9, '#fff');
   if (F.rule) drawRule(c, g, F.rule, t, lite);
+  mech.drawMech(g, c, label);
 }
 
 function charName(id: string): string { const ch = CHARS.byId[id]; return ch ? ch.name : id; }
@@ -406,7 +415,7 @@ function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleState, t: n
       }
     }
   } else {
-    const G = RULE_CFG.gold, nextGold = r.rally % G.every === G.first;
+    const G = RULE_CFG.gold, ev = mech.has('weatherBall') ? 3 : G.every, nextGold = r.rally % ev === G.first % ev;
     const serving = (c.state === c.beforeStartOfNextRound || c.state === c.afterEndOfRound || c.state === c.startOfNewGame) && nextGold && !c.gameEnded;
     if (serving) { label(g, T.goldBall, NET_X, 112, 30, '#FFD54F'); label(g, T.goldWorth, NET_X, 140, 15, '#fff'); }
     if (r.golden && c.state === c.round && !c.roundEnded) {

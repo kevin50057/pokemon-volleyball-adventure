@@ -51,6 +51,7 @@ export function cardView(id: string, onClick: (() => unknown) | null, on: boolea
   top.appendChild(el('b', '', T.cardName[id] || id));
   if (def && def.tag) top.appendChild(el('span', 'pv-exp-tag ' + def.tag, T.tagName[def.tag]));
   b.appendChild(top);
+  if (def && def.mech) { b.classList.add('mech'); b.appendChild(el('div', 'mechdesc', T.cardDesc[id] || '')); }
   if (def) STATS.forEach((k) => { const v = def.mods[k]; if (v !== undefined) b.appendChild(el('div', v >= 1 ? 'up' : 'down', (v >= 1 ? '▲ ' : '▼ ') + T.statName[k] + ' ' + mult(v))); });
   return b;
 }
@@ -115,6 +116,7 @@ export const CSS = [
   '#pv-exp .pv-exp-card.on{border-color:#ffd54f;background:#3a3f7a}',
   '#pv-exp .pv-exp-card-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:2px}',
   '#pv-exp .pv-exp-card .up{color:#9dffb8} #pv-exp .pv-exp-card .down{color:#ffab91}',
+  '#pv-exp .pv-exp-card.mech{border-color:#ff8a3d} #pv-exp .pv-exp-card .mechdesc{font-size:13px;color:#ffe0b2}',
   '#pv-exp .pv-exp-tag{font-size:11px;border-radius:999px;padding:0 7px;color:#1d2140;font-weight:700}',
   '#pv-exp .pv-exp-tag.thunder{background:#ffd54f} #pv-exp .pv-exp-tag.wind{background:#b2ff59}',
   '#pv-exp .pv-exp-tagline.thunder{color:#ffd54f} #pv-exp .pv-exp-tagline.wind{color:#b2ff59}',

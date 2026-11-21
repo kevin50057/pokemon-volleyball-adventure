@@ -8,7 +8,7 @@ export const SCHEMA_VERSION = 1;
 /** 亂數演算法版本：改了 rng.ts 的算法就要加一（同 seed 才會得到同樣的掉落） */
 export const RNG_VERSION = 1;
 /** 內容版本：路線、對手、勝分、卡牌等設定改了就要換 */
-export const CONTENT_VERSION = 'c1-1';
+export const CONTENT_VERSION = 'c1-2';
 
 export type Phase = 'map' | 'active' | 'reward' | 'cleared' | 'failed';
 export type MatchResult = 'win' | 'loss' | 'forfeit';

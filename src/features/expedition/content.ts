@@ -110,26 +110,29 @@ export function matchNode(id: string): MatchNode | undefined { const n = nodeByI
 // ---------- 卡牌（招式學習器）與羈絆 ----------
 export type Tag = 'thunder' | 'wind' | 'fire' | 'water';
 export type Stat = 'move' | 'jump' | 'spike' | 'dive';
-export interface CardDef { id: string; tag?: Tag; mods: Partial<Record<Stat, number>> }
+/** 機制卡（改變打法；效果在 mech.ts） */
+export type MechId = 'charge' | 'counterSet' | 'doubleJump' | 'dropShot' | 'serveAce' | 'weatherBall';
+export interface CardDef { id: string; tag?: Tag; mods: Partial<Record<Stat, number>>; mech?: MechId }
 
 /**
- * 跟 SPEC §4.1 的差異：這個遊戲本體沒有「能量」這個東西，
- * 規格裡兩張「能量取得」的卡（電氣球、蓄勢）和雷羈絆改成作用在「撲救距離」。
+ * 卡牌：一半是改變打法的機制卡，一半是「感覺得到」的數值卡（倍率拉到 SPEC 上限附近）。
+ * 跟 SPEC §4.1 的差異：遊戲本體沒有「能量」，原本作用在能量的卡改成作用在撲救距離。
  */
 export const CARDS: readonly CardDef[] = [
-  { id: 'quickShoes', tag: 'thunder', mods: { move: 1.08 } },
-  { id: 'lightFeather', tag: 'wind', mods: { jump: 1.08 } },
-  { id: 'voltBall', tag: 'thunder', mods: { dive: 1.12 } },
-  { id: 'galeForce', tag: 'wind', mods: { spike: 1.08 } },
-  { id: 'stance', mods: { move: 1.06, jump: 0.95 } },
-  { id: 'windup', mods: { dive: 1.18, spike: 0.96 } },
-  // 第一章新增
-  { id: 'emberCharm', tag: 'fire', mods: { spike: 1.06 } },
-  { id: 'heatRock', tag: 'fire', mods: { jump: 1.04, spike: 1.04 } },
-  { id: 'mysticWater', tag: 'water', mods: { move: 1.05 } },
-  { id: 'shellBell', tag: 'water', mods: { dive: 1.10 } },
-  { id: 'muscleBand', mods: { spike: 1.10, move: 0.95 } },
-  { id: 'softSand', mods: { move: 1.04, dive: 1.06 } },
+  // 機制卡
+  { id: 'charge', tag: 'fire', mods: {}, mech: 'charge' },
+  { id: 'counterSet', tag: 'water', mods: {}, mech: 'counterSet' },
+  { id: 'doubleJump', tag: 'wind', mods: {}, mech: 'doubleJump' },
+  { id: 'dropShot', mods: {}, mech: 'dropShot' },
+  { id: 'serveAce', tag: 'thunder', mods: {}, mech: 'serveAce' },
+  { id: 'weatherBall', mods: {}, mech: 'weatherBall' },
+  // 數值卡
+  { id: 'quickShoes', tag: 'thunder', mods: { move: 1.12 } },
+  { id: 'lightFeather', tag: 'wind', mods: { jump: 1.12 } },
+  { id: 'galeForce', tag: 'wind', mods: { spike: 1.12 } },
+  { id: 'shellBell', tag: 'water', mods: { dive: 1.15 } },
+  { id: 'muscleBand', tag: 'fire', mods: { spike: 1.15, move: 0.9 } },
+  { id: 'windup', mods: { dive: 1.22, spike: 0.92 } },
 ];
 export function cardById(id: string): CardDef | undefined { return CARDS.find((c) => c.id === id); }
 

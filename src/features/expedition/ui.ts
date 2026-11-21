@@ -12,7 +12,7 @@ import { drawCapture, drawMap, drawPostcard, face, sceneNumbers } from './art';
 import { STATS, cardMods } from './cards';
 import {
   CAPTURE_CHANCE, CARD_SLOTS, DEX_NODE, EVENTS, FORK_OF, PARTY_MAX, START_HEARTS, STARTERS, STOPS,
-  matchNode, nodeById, type EventChoice, type MatchNode,
+  cardById, matchNode, nodeById, type EventChoice, type MatchNode, type MechId,
 } from './content';
 import { DbError, ExpeditionDb, type LoadState } from './db';
 import { RuleError, eventOf, newRun } from './logic';
@@ -20,6 +20,7 @@ import { newSeed, rngFor } from './rng';
 import { T } from './texts';
 import type { CaptureRecord, ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
 import { acquireWriter } from './env';
+import { fired as mechFired } from './mech';
 import { CSS, bonusView, button, cardView, charName, el, nodeName, portrait, stage } from './widgets';
 
 const ids = (): readonly string[] => CHARS.ids;
@@ -144,11 +145,12 @@ function fight(): Promise<void> {
     const node = matchNode(r2.nodeId);
     if (!node || !r2.matchId) return;
     const lead = r2.partyIds[0], mods = cardMods(lead, r2.equippedCardIds);
+    const mechs = r2.equippedCardIds.slice().sort().map((id) => cardById(id)).filter((c) => c && c.mech).map((c) => (c as { mech: MechId }).mech);
     const ok = match.start({
       matchId: r2.matchId, p1: lead as CharacterId, p2: node.opp, score: node.score,
       field: {
         title: nodeName(node.id), hearts: r2.hearts, rule: node.rule, diff: node.diff, boss: node.boss, tint: TINT[node.id],
-        mods: STATS.some((k) => mods[k] !== 1) ? mods : undefined,
+        mods: STATS.some((k) => mods[k] !== 1) ? mods : undefined, mechs,
       },
     }, onEnd, onInterrupt);
     if (!ok) { ui.note = T.busy; return; }
@@ -599,14 +601,15 @@ export const debug = {
    * 電腦對電腦打某一站（不寫存檔），用來檢查場地規則會不會卡死。
    * 回傳 false 表示遊戲本體還沒好或有其他模式在用。結束後呼叫 soakStop()。
    */
-  soak: (nodeId: string, lead: CharacterId = 'pikachu', mods?: Record<string, number>): boolean => {
+  soak: (nodeId: string, lead: CharacterId = 'pikachu', mods?: Record<string, number>, mechs?: MechId[], cpu = true): boolean => {
     const node = matchNode(nodeId);
     if (!node || match.playing()) return false;
     hide();
     return match.start({
-      matchId: 'soak/' + nodeId, p1: lead, p2: node.opp, score: node.score, cpuP1: true,
-      field: { title: nodeName(node.id), hearts: START_HEARTS, rule: node.rule, diff: node.diff, boss: node.boss, mods: mods as never },
+      matchId: 'soak/' + nodeId, p1: lead, p2: node.opp, score: node.score, cpuP1: cpu,
+      field: { title: nodeName(node.id), hearts: START_HEARTS, rule: node.rule, diff: node.diff, boss: node.boss, mods: mods as never, mechs },
     }, () => { /* 不結算 */ }, () => { /* 不處理 */ });
   },
   soakStop: () => match.stop(true),
+  mechFired,
 };

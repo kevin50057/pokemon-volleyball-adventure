@@ -203,10 +203,10 @@ describe('rules', () => {
   });
   it('supply: loadout must be owned cards, at most two; switching the lead reorders the party', () => {
     let r = newRun('r', 's', ['pikachu', 'vaporeon'], 0);
-    r = { ...r, nodeId: 'supply', ownedCardIds: ['quickShoes', 'stance', 'windup'], equippedCardIds: ['quickShoes', 'stance'] };
-    expect(() => leaveSupply(r, r.revision, ['quickShoes', 'stance', 'windup'])).toThrow(RuleError);
+    r = { ...r, nodeId: 'supply', ownedCardIds: ['quickShoes', 'charge', 'windup'], equippedCardIds: ['quickShoes', 'charge'] };
+    expect(() => leaveSupply(r, r.revision, ['quickShoes', 'charge', 'windup'])).toThrow(RuleError);
     expect(() => leaveSupply(r, r.revision, ['galeForce'])).toThrow(RuleError);
-    expect(() => leaveSupply(r, r.revision, ['stance', 'stance'])).toThrow(RuleError);
+    expect(() => leaveSupply(r, r.revision, ['charge', 'charge'])).toThrow(RuleError);
     const sw = setLead(r, r.revision, 'vaporeon');
     expect(sw.partyIds).toEqual(['vaporeon', 'pikachu']);
     expect(() => setLead(r, r.revision, 'magikarp')).toThrow(RuleError);
@@ -225,7 +225,7 @@ describe('rules', () => {
     expect(!unknownChar.ok && unknownChar.reason).toBe('corrupt');
     const unknownCard = validateRun({ ...r, ownedCardIds: ['nope'] }, IDS);
     expect(!unknownCard.ok && unknownCard.reason).toBe('corrupt');
-    const notOwned = validateRun({ ...r, equippedCardIds: ['stance'] }, IDS);
+    const notOwned = validateRun({ ...r, equippedCardIds: ['charge'] }, IDS);
     expect(!notOwned.ok && notOwned.reason).toBe('corrupt');
     const oldContent = validateRun({ ...r, contentVersion: 'm1-1' }, IDS);
     expect(!oldContent.ok && oldContent.reason).toBe('unsupported');
@@ -375,17 +375,18 @@ describe('cards and bonds', () => {
     expect(CARDS.length).toBe(12);
   });
   it('the same card never counts twice and order does not matter', () => {
-    expect(cardMods('vaporeon', ['quickShoes', 'quickShoes']).move).toBeCloseTo(1.08);
-    expect(cardMods('vaporeon', ['stance', 'quickShoes'])).toEqual(cardMods('vaporeon', ['quickShoes', 'stance']));
-    expect(cardMods('vaporeon', ['quickShoes', 'stance']).move).toBeCloseTo(1.08 * 1.06);
+    expect(cardMods('vaporeon', ['quickShoes', 'quickShoes']).move).toBeCloseTo(1.12);
+    expect(cardMods('vaporeon', ['muscleBand', 'quickShoes'])).toEqual(cardMods('vaporeon', ['quickShoes', 'muscleBand']));
+    expect(cardMods('vaporeon', ['quickShoes', 'muscleBand']).move).toBeCloseTo(1.12 * 0.9);
+    expect(cardMods('vaporeon', ['charge', 'doubleJump'])).toEqual({ move: 1, jump: 1, spike: 1, dive: 1 });   // 機制卡不動倍率
   });
   it('bonds need two of a tag and count the active partner', () => {
     expect(activeBonds('vaporeon', ['quickShoes'])).toEqual([]);
     expect(activeBonds('pikachu', ['quickShoes'])).toEqual(['thunder']);
-    expect(activeBonds('vaporeon', ['quickShoes', 'voltBall'])).toEqual(['thunder']);
+    expect(activeBonds('vaporeon', ['quickShoes', 'serveAce'])).toEqual(['thunder']);
     expect(activeBonds('farfetchd', ['lightFeather'])).toEqual(['wind']);
-    expect(cardMods('pikachu', ['voltBall']).dive).toBeCloseTo(1.12 * 1.08);
-    expect(cardMods('farfetchd', ['lightFeather']).jump).toBeCloseTo(1.08 * 1.06);
+    expect(cardMods('pikachu', ['serveAce']).dive).toBeCloseTo(1.08);
+    expect(cardMods('farfetchd', ['lightFeather']).jump).toBeCloseTo(1.12 * 1.06);
   });
   it('no two-card loadout, with any lead and its bond, pushes a stat past its cap', () => {
     const leads = ['pikachu', 'jolteon', 'flareon', 'charmander', 'vaporeon', 'squirtle', 'bulbasaur', 'farfetchd', 'dragonite', 'magikarp'];
@@ -409,6 +410,7 @@ describe('cards and bonds', () => {
   });
   it('multipliers are capped together with the character\'s own', () => {
     expect(capped('move', 1, 1.08 * 1.06)).toBeCloseTo(1.1448);
+    CARDS.filter((c) => c.mech).forEach((c) => expect(Object.keys(c.mods)).toEqual([]));
     expect(capped('move', 1.05, 1.08 * 1.06)).toBe(1.15);        // 傑尼龜 ×1.05 再加兩張移速卡：封頂
     expect(capped('jump', 0.92, 0.95)).toBeCloseTo(0.874);
     expect(capped('jump', 0.92, 0.9)).toBe(0.85);

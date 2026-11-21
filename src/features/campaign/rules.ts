@@ -10,6 +10,8 @@ import { camp } from './state';
 import type { RuleState } from './state';
 import { sfx } from './sfx';
 import { label } from './draw';
+import { fmt } from '../../core/i18n';
+import { T } from './texts';
 
 export function newRule(id: RuleId): RuleState { return { id: id, rt: 0, rally: 0, golden: false, touched: false, prev: null, puddles: [], spawn: 25, dir: 1, splash: [], pop: null }; }
 
@@ -141,11 +143,11 @@ export function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleStat
         const nx = (k * 53 + 30) % W, ny = H - ((t * (on ? 1.2 : 0.6) + k * 41) % H);
         label(g, k % 2 ? '♪' : '♫', nx, ny, 12, '#FFB3E6');
       }
-      if (warn) label(g, '搖籃曲要來了！', NET_X, 58, 14, '#FFB3E6');
+      if (warn) label(g, T.lullabyWarn, NET_X, 58, 14, '#FFB3E6');
       else {
         const left = 1 - (r.rt % R.lowgrav.period - R.lowgrav.onAt) / (R.lowgrav.period - R.lowgrav.onAt);
         g.fillStyle = '#000'; g.fillRect(NET_X - 41, 51, 82, 8); g.fillStyle = '#FF8AD8'; g.fillRect(NET_X - 40, 52, 80 * left, 6);
-        label(g, '低重力', NET_X, 66, 10, '#FFB3E6');
+        label(g, T.lowgrav, NET_X, 66, 10, '#FFB3E6');
       }
     }
   } else if (r.id === 'wind') {
@@ -155,7 +157,7 @@ export function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleStat
       g.fillStyle = won ? '#B2FF59' : '#FFFFFF'; g.strokeStyle = '#000'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(-26, -5); g.lineTo(8, -5); g.lineTo(8, -12); g.lineTo(26, 0); g.lineTo(8, 12); g.lineTo(8, 5); g.lineTo(-26, 5); g.closePath(); g.stroke(); g.fill();
       g.restore();
-      label(g, wwarn ? '強風要來了！' : '強風', NET_X, 80, wwarn ? 13 : 10, won ? '#B2FF59' : '#fff');
+      label(g, wwarn ? T.windWarn : T.wind, NET_X, 80, wwarn ? 13 : 10, won ? '#B2FF59' : '#fff');
     }
     if (won) {
       g.strokeStyle = 'rgba(220,255,200,0.45)'; g.lineWidth = 1.5;
@@ -167,14 +169,14 @@ export function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleStat
   } else if (r.id === 'gold') {
     const nextGold = r.rally % R.gold.every === R.gold.first;
     const serving = (c.state === c.beforeStartOfNextRound || c.state === c.afterEndOfRound) && nextGold && !c.gameEnded;
-    if (serving) { label(g, '黃金球！', NET_X, 112, 30, '#FFD54F'); label(g, '本球 2 分', NET_X, 140, 15, '#fff'); }
+    if (serving) { label(g, T.goldBall, NET_X, 112, 30, '#FFD54F'); label(g, T.goldWorth, NET_X, 140, 15, '#fff'); }
     if (r.golden && c.state === c.round && !c.roundEnded) {
       g.globalAlpha = 0.85; g.strokeStyle = '#FFD54F'; g.lineWidth = 3;
       g.beginPath(); g.arc(ball.x, ball.y, 22 + Math.sin(t / 2) * 2, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
-      label(g, '2分', ball.x, ball.y - 30, 10, '#FFD54F');
-      if (r.rt < 400) label(g, '黃金球　本球 2 分', NET_X, 58, 11, '#FFD54F');
+      label(g, T.goldTag, ball.x, ball.y - 30, 10, '#FFD54F');
+      if (r.rt < 400) label(g, T.goldBanner, NET_X, 58, 11, '#FFD54F');
     }
     if (r.pop && ++r.pop.t < 30) label(g, '+2', r.pop.side === 1 ? 382 : 50, 62 - r.pop.t, 22, '#FFD54F');
   }
-  if (def) label(g, '場地：' + def.name, NET_X, 44, 9, def.color);
+  if (def) label(g, fmt(T.fieldLabel, { name: def.name }), NET_X, 44, 9, def.color);
 }

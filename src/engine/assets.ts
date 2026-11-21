@@ -8,6 +8,10 @@
  * 注意：載入器（index.ts）照這裡的鍵的順序加入資源，SOUNDS 的鍵順序不要改。
  */
 import { IMAGES_URL, SOUNDS_URL } from '../core/config';
+import { lang } from '../core/i18n';
+
+/** 畫面上的日文訊息圖：韓文頁用原作韓文版的圖，其他語言用日文原圖。 */
+const MSG = lang() === 'ko' ? 'ko' : 'ja';
 
 const TEXTURES = {
   PIKACHU: (i: number, j: number): string => `pikachu/pikachu_${i}_${j}.png`,
@@ -57,13 +61,13 @@ const TEXTURES = {
   READY: 'messages/common/ready.png',
   GAME_END: 'messages/common/game_end.png',
 
-  MARK: 'messages/ja/mark.png',
-  POKEMON: 'messages/ja/pokemon.png',
-  PIKACHU_VOLLEYBALL: 'messages/ja/pikachu_volleyball.png',
-  FIGHT: 'messages/ja/fight.png',
-  WITH_COMPUTER: 'messages/ja/with_computer.png',
-  WITH_FRIEND: 'messages/ja/with_friend.png',
-  GAME_START: 'messages/ja/game_start.png',
+  MARK: `messages/${MSG}/mark.png`,
+  POKEMON: `messages/${MSG}/pokemon.png`,
+  PIKACHU_VOLLEYBALL: `messages/${MSG}/pikachu_volleyball.png`,
+  FIGHT: `messages/${MSG}/fight.png`,
+  WITH_COMPUTER: `messages/${MSG}/with_computer.png`,
+  WITH_FRIEND: `messages/${MSG}/with_friend.png`,
+  GAME_START: `messages/${MSG}/game_start.png`,
 
   SITTING_PIKACHU: 'sitting_pikachu.png',
 };

@@ -5,7 +5,8 @@ import { svc, nextZ } from '../../core/services';
 import { store } from '../../core/storage';
 import { CODE_RE, newCode } from './protocol';
 import { conn, net } from './state';
-import { LANG, T } from './text';
+import { fmt } from '../../core/i18n';
+import { T } from './text';
 import { charName, ctrlOf, ensureGame, now, selectedChar } from './util';
 import { lobby, start, stop } from './session';
 import { hostStart } from './host';
@@ -148,8 +149,8 @@ export function lastRoom(): LastRoom | null {
 export function renderPanel(): void {
   const inRoom = net.phase !== 'off';
   const l = !inRoom && lastRoom();
-  if (ui.backRow) { ui.backRow.style.display = l ? '' : 'none'; if (l) ui.back.textContent = T.back + ' ' + l.code.toUpperCase() + '（' + (l.role === 'host' ? T.you : T.guest) + '）'; }
-  if (ui.dbg) ui.dbg.textContent = inRoom ? (LANG === 'zh' ? '房間內 ' : 'In room: ') + (net.peerCount || 0) + (LANG === 'zh' ? ' 人' : '') + '  [' + (net.peerDbg || '') + ']' + diag() : '';
+  if (ui.backRow) { ui.backRow.style.display = l ? '' : 'none'; if (l) ui.back.textContent = fmt(T.backRoom, { back: T.back, code: l.code.toUpperCase(), role: l.role === 'host' ? T.you : T.guest }); }
+  if (ui.dbg) ui.dbg.textContent = inRoom ? fmt(T.inRoom, { n: net.peerCount || 0 }) + '  [' + (net.peerDbg || '') + ']' + diag() : '';
   ui.home.style.display = inRoom ? 'none' : '';
   ui.inroom.style.display = inRoom ? '' : 'none';
   ui.code.textContent = net.code.toUpperCase();
@@ -163,7 +164,7 @@ export function renderPanel(): void {
     if (net.phase === 'lobby' || net.phase === 'end') {
       if (!net.room) status(conn.lostSince ? T.reconnecting : T.connecting, !!conn.lostSince);
       else if (net.msg === 'dup') status(T.dup, true);
-      else status(resultText() + (net.opp ? T.oppIn + '：' + charName(net.oppCh) : T.waitOpp));
+      else status(resultText() + (net.opp ? T.oppIn + T.colon + charName(net.oppCh) : T.waitOpp));
     }
   } else {
     if (!net.room) status(conn.lostSince ? T.reconnecting : T.connecting, !!conn.lostSince);

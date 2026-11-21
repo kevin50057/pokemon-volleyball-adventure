@@ -3,6 +3,7 @@
 import { store } from '../../core/storage';
 import { LITE_KEY } from './config';
 import { S } from './state';
+import { fmt, pick } from '../../core/i18n';
 
 let liteMode = false;
 
@@ -20,10 +21,14 @@ export function lite(): boolean { return liteMode; }
 export function addLiteToggle(): void {
   const dd = document.getElementById('options-dropdown');
   if (!dd || document.getElementById('pv-fx-btn')) return;
-  const zh = (document.documentElement.lang || 'zh').slice(0, 2) === 'zh';
+  const T = pick({
+    zh: { label: '特效：{mode}', lite: '精簡', full: '完整' },
+    en: { label: 'Effects: {mode}', lite: 'Lite', full: 'Full' },
+    ko: { label: '효과: {mode}', lite: '간소', full: '전체' },
+  });
   const b = document.createElement('button');
   b.type = 'button'; b.id = 'pv-fx-btn'; b.className = 'btn';
-  const paint = function () { b.textContent = zh ? ('特效：' + (liteMode ? '精簡' : '完整')) : ('Effects: ' + (liteMode ? 'Lite' : 'Full')); };
+  const paint = function () { b.textContent = fmt(T.label, { mode: liteMode ? T.lite : T.full }); };
   paint();
   b.addEventListener('click', function (e) {
     e.stopPropagation();

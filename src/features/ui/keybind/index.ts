@@ -5,6 +5,7 @@ import type { KeyState, Keyboard } from '../../../core/types';
 import { svc, nextZ, onReady } from '../../../core/services';
 import { store } from '../../../core/storage';
 import { CSS } from './style';
+import { pick } from '../../../core/i18n';
 import { TEXTS, type Texts } from './texts';
 
 /**
@@ -32,7 +33,6 @@ const TOUCH_FIELD: Record<Action, 'left' | 'right' | 'up' | 'down' | 'action'> =
 const DOWN_RIGHT_1P = 'KeyF';   // 原作 1P 的「右下」鍵；被拿去綁別的動作時就停用
 
 // 語言在 init 時才讀（import 不能有副作用）
-let LANG = 'zh';
 let T: Texts = TEXTS.zh;
 
 function keyOf(kb: Keyboard, field: 'leftKey' | 'rightKey' | 'upKey' | 'downKey' | 'powerHitKey' | 'downRightKey'): BoundKey | undefined {
@@ -88,10 +88,10 @@ function label(code: string | null | undefined): string {
   let m: RegExpExecArray | null;
   if ((m = /^Key([A-Z])$/.exec(code))) return m[1];
   if ((m = /^Digit(\d)$/.exec(code))) return m[1];
-  if ((m = /^Numpad(\d)$/.exec(code))) return (LANG === 'zh' ? '數字鍵 ' : 'Num ') + m[1];
+  if ((m = /^Numpad(\d)$/.exec(code))) return T.numpad + m[1];
   const map: Record<string, string | undefined> = {
     ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Enter: 'Enter', NumpadEnter: 'Num Enter',
-    ShiftLeft: (LANG === 'zh' ? '左 Shift' : 'L Shift'), ShiftRight: (LANG === 'zh' ? '右 Shift' : 'R Shift'),
+    ShiftLeft: T.shiftL, ShiftRight: T.shiftR,
     Comma: ',', Period: '.', Slash: '/', Semicolon: ';', Quote: "'", BracketLeft: '[', BracketRight: ']',
     Backslash: '\\', Minus: '-', Equal: '=', Backquote: '`', Backspace: 'Backspace', Delete: 'Del',
     Insert: 'Ins', Home: 'Home', End: 'End', PageUp: 'PgUp', PageDown: 'PgDn',
@@ -314,8 +314,7 @@ export function installKeyGuards(): void {
 
 // ------------------------------------------------------------------
 export function init(): void {
-  LANG = (document.documentElement.lang || 'zh').slice(0, 2);
-  T = LANG === 'zh' ? TEXTS.zh : TEXTS.en;
+  T = pick(TEXTS);
   cfg = load();
   installKeyGuards();
   svc.keys = { config: () => clone(cfg), open: open, close: close, label: label, apply: applyAll };

@@ -20,6 +20,8 @@ import { sfx } from './sfx';
 import { go, render } from './ui/screens';
 import { hide } from './ui/dom';
 import { playAcquire, playClear } from './ui/overlays';
+import { fmt } from '../../core/i18n';
+import { T } from './texts';
 
 /** run.char／order 都已經檢查過是角色 id（讀檔時、或 buildOrder 從 CFG 排出來的） */
 function asId(id: string): CharacterId { return id as CharacterId; }
@@ -27,7 +29,7 @@ function asId(id: string): CharacterId { return id as CharacterId; }
 export function startMatch(): void {
   const run = save.run;
   if (!run) return;
-  if (netBusy()) { camp.toast = '先離開連線房間，才能闖關。'; go('vs'); return; }
+  if (netBusy()) { camp.toast = T.netBusyToast; go('vs'); return; }
   const c = ctrlOf();
   if (!c) { ensureGame(); camp.wantStart = true; render(); return; }
   hookCtrl();
@@ -122,7 +124,7 @@ function finish(c: Controller): void {
       run.idx++;
       run.bossPhase = 1;
       if (got) steps.push(function (next) { playAcquire(opp, full, next); });
-      if (zoneIdx(run.idx) !== zoneIdx(run.idx - 1)) camp.toast = '進入「' + zoneOf(run.idx).name + '」';
+      if (zoneIdx(run.idx) !== zoneIdx(run.idx - 1)) camp.toast = fmt(T.enterZone, { zone: zoneOf(run.idx).name });
       after = function () { camp.travelFrom = run.idx - 1; camp.autoVs = true; go('vs'); };
     }
   } else {

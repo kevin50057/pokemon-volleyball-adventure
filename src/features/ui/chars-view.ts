@@ -18,3 +18,7 @@ export function charById(id: string | null | undefined): CharDef | undefined {
 export function typeColor(type: PokeType): string | undefined {
   return CHARS.typeColors && CHARS.typeColors[type];
 }
+/** 屬性的顯示名稱（依頁面語言；`type` 本身是內部鍵，不要直接顯示）。 */
+export function typeLabel(type: PokeType): string {
+  return CHARS.typeLabels[type] || type;
+}

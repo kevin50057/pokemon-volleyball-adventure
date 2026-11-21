@@ -12,12 +12,14 @@ export function heart(g: G, x: number, y: number, s: number, on: boolean): void 
   g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
   g.fillStyle = on ? '#FF3B5C' : 'rgba(255,255,255,0.28)'; g.fill();
 }
-export function label(g: G, text: string, x: number, y: number, size: number, color?: string, align?: CanvasTextAlign): void {
+/** maxW：太長就橫向壓扁到這個寬度（英文、韓文的字比繁中長；繁中原本的字都放得下，不受影響） */
+export function label(g: G, text: string, x: number, y: number, size: number, color?: string, align?: CanvasTextAlign, maxW?: number): void {
+  const mw = maxW || W - 12;
   g.font = '900 ' + size + 'px ' + FONT;
   g.textAlign = align || 'center'; g.textBaseline = 'middle';
   g.lineJoin = 'round'; g.lineWidth = Math.max(2, size / 4); g.strokeStyle = '#000';
-  g.strokeText(text, x, y);
-  g.fillStyle = color || '#fff'; g.fillText(text, x, y);
+  g.strokeText(text, x, y, mw);
+  g.fillStyle = color || '#fff'; g.fillText(text, x, y, mw);
 }
 export function bar(g: G, x: number, y: number, w: number, h: number, n: number, left: number, color: string, fromRight: boolean, flashFrom: number, flashK: number): void {
   const gap = 2, sw = (w - gap * (n - 1)) / n;
@@ -48,5 +50,5 @@ export function star4(g: G, x: number, y: number, r: number, color: string): voi
 export function slam(g: G, text: string, x: number, y: number, size: number, color: string, age: number): void {
   const k = age < 4 ? 1 + (4 - age) * 0.5 : 1 + Math.max(0, 7 - age) * 0.03;
   g.save(); g.translate(x + (age >= 4 && age < 9 ? (age % 2 ? 2 : -2) : 0), y); g.transform(1, 0, -0.14, 1, 0, 0);
-  label(g, text, 0, 0, size * k, color); g.restore();
+  label(g, text, 0, 0, size * k, color, 'center', (W - 12) * k); g.restore();   // 放大時寬度上限跟著放大，只在原本大小就放不下時才壓扁
 }

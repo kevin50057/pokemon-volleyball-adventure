@@ -10,6 +10,7 @@ import { charName } from './chars';
 import { bar, confetti, heart, label, slam } from './draw';
 import { drawRule } from './rules';
 import { drawKo } from './ko';
+import { T } from './texts';
 
 let hud: HTMLCanvasElement | null = null, hctx: CanvasRenderingContext2D | null = null, hudRect = '';
 function syncHud(): boolean {
@@ -91,19 +92,19 @@ export function drawHud(c: Controller): void {
     const sh = b.hit > 0 ? Math.sin(b.hit * 2.6) * 3 : 0, sh2 = b.hurt > 0 ? Math.sin(b.hurt * 2.6) * 3 : 0;
     label(g, charName(run.char), 16, 11, 10, '#fff', 'left');
     bar(g, 16 + sh2, 19, 150, 9, B.playerHp, myHp, myHp <= 1 ? '#FF5252' : '#69F0AE', false, myHp + (b.hurt > 0 ? 1 : 0), b.hurt / 12);
-    label(g, '超夢', 416, 11, 10, '#E1BEE7', 'right');
+    label(g, charName('mewtwo'), 416, 11, 10, '#E1BEE7', 'right');
     // b.hit > 0 時 hitFrom 一定已經設定過
     bar(g, 266 + sh, 19 + Math.abs(sh) * 0.4, 150, 9, B.hp, bossHp, phase === 3 ? '#FF4081' : '#B048FF', true, B.hp - (b.hit > 0 ? b.hitFrom as number : c.scores[0]), b.hit / 12);
     for (let q = 1; q < 3; q++) { g.fillStyle = '#000'; g.fillRect(266 + sh + 150 * q / 3 - 1.5, 15, 3, 17); }
-    label(g, ['第一階段', '第二階段', '第三階段'][phase - 1], NET_X, 12, 9, phase === 3 ? '#FF80AB' : '#E1BEE7');
+    label(g, T.phases[phase - 1], NET_X, 12, 9, phase === 3 ? '#FF80AB' : '#E1BEE7');
     for (let h1 = 0; h1 < CFG.hearts; h1++) heart(g, NET_X - 14 + h1 * 14, 27, 5, h1 < run.hearts);
     label(g, '★', NET_X + 34, 27, 11, tierInfo(tierOf(run.lost)).color);
     // 換階段的演出
     if (b.cut > 0) {
       const k2 = 1 - b.cut / B.cutFrames;
       g.globalAlpha = 0.55 * Math.sin(Math.PI * Math.min(1, k2 * 1.2)); g.fillStyle = '#14002A'; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
-      slam(g, b.next === 3 ? '第三階段' : '第二階段', NET_X, 118, 32, b.next === 3 ? '#FF80AB' : '#D7A8FF', B.cutFrames - b.cut);
-      label(g, b.next === 3 ? '全場加速，念力更頻繁' : '念力增強', NET_X, 150, 12, '#fff');
+      slam(g, T.phases[b.next === 3 ? 2 : 1], NET_X, 118, 32, b.next === 3 ? '#FF80AB' : '#D7A8FF', B.cutFrames - b.cut);
+      label(g, b.next === 3 ? T.phase3Note : T.phase2Note, NET_X, 150, 12, '#fff');
     }
     if (b.flash > 0) { if (!lite) { g.globalAlpha = 0.5 * b.flash / 6; g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.globalAlpha = 1; } b.flash--; }
   } else if (run === save.run) {

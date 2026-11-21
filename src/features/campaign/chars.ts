@@ -18,3 +18,5 @@ export const CH = {
 };
 
 export function charName(id: string): string { const c = CH.byId[id]; return c ? c.name : id; }
+/** 屬性的顯示名稱（c.type 是內部的鍵，不直接顯示）。 */
+export function typeName(type: string): string { return (CHARS.typeLabels as Record<string, string>)[type] || type; }

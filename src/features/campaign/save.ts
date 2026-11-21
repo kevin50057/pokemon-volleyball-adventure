@@ -4,6 +4,8 @@ import { CFG, KEY, STAGES, ZONE_START, tierOf, zoneIdx, zoneOf } from './config'
 import { CH } from './chars';
 import { save } from './state';
 import type { Run, RunRec } from './state';
+import { fmt } from '../../core/i18n';
+import { T } from './texts';
 
 // ---------- 讀存檔用的小工具：存檔是外來資料，每個欄位都要先檢查 ----------
 /** 跟 JS 的 `o.k` 一樣：物件就取欄位，其他（null、數字、字串…）一律當成 undefined。 */
@@ -71,12 +73,12 @@ export function checkSpecial(): string[] {
   return got;
 }
 export function howToGet(id: string): string {
-  if (id === 'ditto') return '累積 3 面獎章';
-  if (id === 'mew') return '拿到一面金獎章（一場都沒輸地通關），或 3 面銀獎章';
-  if (id === 'mewtwo') return '在最終戰打倒牠';
+  if (id === 'ditto') return T.howDitto;
+  if (id === 'mew') return T.howMew;
+  if (id === 'mewtwo') return T.howMewtwo;
   for (let i = 0; i < CFG.zones.length; i++) {
     const z = CFG.zones[i], all = (z.fixed || []).concat(z.pool || [], z.last ? [z.last] : []);
-    if (all.indexOf(id) >= 0) return '在「' + z.name + '」打倒牠';
+    if (all.indexOf(id) >= 0) return fmt(T.howZone, { zone: z.name });
   }
   return '';
 }

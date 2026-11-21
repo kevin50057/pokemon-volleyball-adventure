@@ -2,6 +2,8 @@
 import { nextZ, svc } from '../../../core/services';
 import { CFG } from '../config';
 import { CH } from '../chars';
+import { fmt, lang } from '../../../core/i18n';
+import { T } from '../texts';
 
 /** 介面的共用狀態（舊版的 root、scr、confirmReset、autoTimer、anims）。build() 之後 root、scr 才有值。 */
 export const ui = {
@@ -25,13 +27,21 @@ export function heartsHtml(n: number, broken?: boolean): string {
   for (let i = 0; i < CFG.hearts; i++) s += i < n ? '♥︎' : (broken && i === n ? '<span class="brk">♥︎</span>' : '<i>♥︎</i>');
   return '<span class="hearts">' + s + '</span>';
 }
+/** 說明的開頭幾句（繁中湊滿 10 個字；英文、韓文是用空白分句的語言，照比例多湊一點）。 */
 export function firstLine(desc: string): string {
-  const parts = desc.split('。');
+  const L = lang();
+  if (L === 'zh') {
+    const parts = desc.split('。');
+    let s = '';
+    for (let i = 0; i < parts.length && s.length < 10; i++) if (parts[i]) s += parts[i] + '。';
+    return s;
+  }
+  const parts = desc.match(/[^.!?。]+[.!?。]*\s*/g) || [desc], min = L === 'en' ? 30 : 14;
   let s = '';
-  for (let i = 0; i < parts.length && s.length < 10; i++) if (parts[i]) s += parts[i] + '。';
-  return s;
+  for (let i = 0; i < parts.length && s.length < min; i++) s += parts[i];
+  return s.trim();
 }
-export function fmtTime(frames: number): string { const s = Math.round(frames / 25); return Math.floor(s / 60) + ' 分 ' + ('0' + (s % 60)).slice(-2) + ' 秒'; }
+export function fmtTime(frames: number): string { const s = Math.round(frames / 25); return fmt(T.time, { m: Math.floor(s / 60), s: ('0' + (s % 60)).slice(-2) }); }
 
 // ---------- 角色圖：用現成的動作圖在介面裡播動畫 ----------
 // 舊版把動畫狀態掛在 canvas._a 上；這裡改放 WeakMap，行為一樣

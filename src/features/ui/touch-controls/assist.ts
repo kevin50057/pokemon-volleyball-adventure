@@ -5,6 +5,7 @@
 import type { Controller, Keyboard, Player } from '../../../core/types';
 import { svc } from '../../../core/services';
 import { KEYSETS, pressed } from './keys';
+import { T } from './texts';
 
 // ========== 觸控輔助：修正遊戲每一幀讀到的輸入 ==========
 export const joyX: [number, number] = [0, 0];            // 搖桿目前的左右方向（技能鍵用它決定往哪邊）
@@ -18,10 +19,10 @@ export type SkillDef =
 // 需要主動施放的技能才有技能鍵。dash：送出衝刺請求（水伊布用遊戲本體的 ±1，其他用 ±2，見 abilities 的 skillKey）；
 // hold：按住等於按住那個方向鍵
 export const SKILLS: Readonly<Record<string, SkillDef | undefined>> = {
-  vaporeon:   { label: '衝', dash: 1 },
-  jolteon:    { label: '閃', dash: 2 },
-  mew:        { label: '瞬', dash: 2 },
-  jigglypuff: { label: '降', hold: 'down' },
+  vaporeon:   { label: T.skillDash, dash: 1 },
+  jolteon:    { label: T.skillZip, dash: 2 },
+  mew:        { label: T.skillWarp, dash: 2 },
+  jigglypuff: { label: T.skillDrop, hold: 'down' },
 };
 
 function netState() { return svc.net && svc.net.state; }

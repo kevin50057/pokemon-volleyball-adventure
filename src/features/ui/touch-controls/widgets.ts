@@ -5,6 +5,7 @@ import type { TouchKeySet } from '../../../core/services';
 import { svc } from '../../../core/services';
 import { noteCancel, pressKey, releaseKey } from './keys';
 import { SKILLS, joyX, myPlayer, skillReq, towardBall } from './assist';
+import { T } from './texts';
 
 type Dir = 'left' | 'right' | 'up' | 'down';
 type Dirs = Record<Dir, boolean>;
@@ -119,8 +120,8 @@ export function createPad(keys: TouchKeySet, side: 'p1' | 'p2'): Pad {
   pad.className = 'touch-pad';
   pad.id = side + '-pad';
   const jump = document.createElement('div'), hit = document.createElement('div');
-  jump.className = 'touch-btn pad-btn pad-jump'; jump.textContent = '跳';
-  hit.className = 'touch-btn pad-btn pad-hit'; hit.textContent = '殺';
+  jump.className = 'touch-btn pad-btn pad-jump'; jump.textContent = T.jump;
+  hit.className = 'touch-btn pad-btn pad-hit'; hit.textContent = T.hit;
   pad.appendChild(jump); pad.appendChild(hit);
   // 注意：跟舊版一樣，跳／殺的按鍵代碼在建立時就記下來（不會跟著自訂按鍵改；搖桿和技能鍵則是當下讀）
   const btns: Array<{ el: HTMLDivElement; key: string }> = [

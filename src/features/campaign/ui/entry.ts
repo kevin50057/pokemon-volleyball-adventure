@@ -11,6 +11,8 @@ import { cssText } from './css';
 import { R, S, esc, hide, isOpen, openRoot, ui } from './dom';
 import { cancelAuto, go, render } from './screens';
 import { primaryOf } from './overlays';
+import { fmt } from '../../../core/i18n';
+import { T } from '../texts';
 
 /** 跟舊版 `t.closest ? t.closest(sel) : null` 一樣（點擊、按鍵的目標都是元素）。 */
 function closest(t: EventTarget | null, sel: string): Element | null {
@@ -32,13 +34,13 @@ function act(a: string, el?: Element): void {
     go('vs');
   } else if (a === 'reset') {
     // reset、new 只會從按鈕點進來，el 一定有值
-    if (!ui.confirmReset) { ui.confirmReset = true; (el as Element).textContent = '再按一次確定'; return; }
+    if (!ui.confirmReset) { ui.confirmReset = true; (el as Element).textContent = T.confirmAgain; return; }
     save.run = null; persist(); ui.confirmReset = false;
     if (camp.waiting) suspend(c, true);
     go('pick');
   } else if (a === 'new') {
     if (!camp.pick || !owned(camp.pick)) return;
-    if (save.run && !ui.confirmReset) { ui.confirmReset = true; (el as Element).textContent = '再按一次確定'; return; }
+    if (save.run && !ui.confirmReset) { ui.confirmReset = true; (el as Element).textContent = T.confirmAgain; return; }
     newRun(camp.pick);
     go('vs');
   } else if (a === 'fight') { startMatch(); }
@@ -46,7 +48,7 @@ function act(a: string, el?: Element): void {
     const run = save.run, opp = run && CH.byId[run.order[run.idx]];
     if (run && opp) {
       const rid = ruleFor(run.idx, opp.id);
-      (S().querySelector('.scr') as Element).insertAdjacentHTML('beforeend', '<div class="more" data-a="less"><div><b style="color:' + opp.color + '">' + esc(opp.name) + '・' + esc(opp.skill) + '</b><br>' + esc(opp.desc) + (rid ? '<br><br><b style="color:' + RULES[rid].color + '">場地規則・' + esc(RULES[rid].name) + '</b><br>' + esc(RULES[rid].desc) : '') + '<br><small style="opacity:.6">點一下關閉</small></div></div>');
+      (S().querySelector('.scr') as Element).insertAdjacentHTML('beforeend', '<div class="more" data-a="less"><div><b style="color:' + opp.color + '">' + esc(opp.name) + T.dot + esc(opp.skill) + '</b><br>' + esc(opp.desc) + (rid ? '<br><br><b style="color:' + RULES[rid].color + '">' + fmt(T.ruleHead, { name: esc(RULES[rid].name) }) + '</b><br>' + esc(RULES[rid].desc) : '') + '<br><small style="opacity:.6">' + T.tapClose + '</small></div></div>');
     }
   } else if (a === 'less') { const m = S().querySelector('.more'); if (m) m.remove(); }
   else if (a === 'resume') { if (c) c.paused = false; hide(); }
@@ -67,7 +69,7 @@ export function openFromMenu(toHub?: boolean): void {
 let banner: HTMLElement | null = null, menuBtn: HTMLButtonElement | null = null;
 export function refreshEntry(): void {
   const c = ctrlOf(), gc = document.getElementById('game-canvas');
-  if (menuBtn) menuBtn.textContent = camp.playing && !camp.waiting ? '暫停' : '闖關';
+  if (menuBtn) menuBtn.textContent = camp.playing && !camp.waiting ? T.pause : T.menuBtn;
   if (!banner) return;
   const show = !!(c && gc && !camp.playing && !netBusy() && !isOpen() && c.state === c.menu && c.view.menu.visible);
   banner.classList.toggle('on', show);
@@ -76,7 +78,7 @@ export function refreshEntry(): void {
   banner.style.left = (r.left + r.width / 2) + 'px';
   banner.style.top = (r.top + r.height * 0.835) + 'px';
   banner.style.fontSize = Math.max(10, Math.min(16, r.height * 0.036)) + 'px';
-  banner.innerHTML = run ? '冠軍之路<small>繼續第 ' + (run.idx + 1) + ' 關　▶︎</small>' : '闖關模式　冠軍之路<small>▶︎</small>';
+  banner.innerHTML = run ? T.logo + '<small>' + fmt(T.bannerRun, { n: run.idx + 1 }) + '</small>' : T.bannerNew + '<small>▶︎</small>';
 }
 
 export function build(): void {
@@ -105,10 +107,10 @@ export function build(): void {
       const seen = nz.boss || (run && ni <= run.idx) || (nid && nz.fixed && nz.fixed.indexOf(nid) >= 0);
       const rid: RuleId | null = seen && nid ? ruleFor(ni, nid) : null;
       sfx('tick');
-      who.innerHTML = '<div><b>' + (nz.boss ? '最終戰' : '第 ' + (ni + 1) + ' 關') + '　' + esc(nz.name) + '</b><br><small>' +
-        (seen && nid ? '對手：' + esc(charName(nid)) : '對手：到了才知道') + '　｜　' + (nz.boss ? '超夢 ' + CFG.boss.hp + ' 格血、分三階段' : '先得 ' + nz.score + ' 分') +
-        (nid && !owned(nid) ? '　｜　✦ 打倒可收服' : seen && nid ? '　｜　已是夥伴' : '') +
-        (rid ? '　｜　場地：' + esc(RULES[rid].name) : '') + '</small></div>';
+      who.innerHTML = '<div><b>' + fmt(T.nodeStage, { stage: nz.boss ? T.zoneFinal : fmt(T.stage, { n: ni + 1 }), zone: esc(nz.name) }) + '</b><br><small>' +
+        (seen && nid ? fmt(T.nodeOpp, { name: esc(charName(nid)) }) : T.nodeOppUnknown) + T.sep + (nz.boss ? fmt(T.nodeBoss, { boss: esc(charName('mewtwo')), hp: CFG.boss.hp }) : fmt(T.nodeScore, { n: nz.score as number })) +
+        (nid && !owned(nid) ? T.sep + T.nodeRecruit : seen && nid ? T.sep + T.nodeOwned : '') +
+        (rid ? T.sep + fmt(T.fieldLabel, { name: esc(RULES[rid].name) }) : '') + '</small></div>';
     }
   });
   // 鍵盤：Enter／空白／殺球鍵＝主要按鈕，Esc＝返回。攔在遊戲本體之前，免得同一下按鍵也被遊戲吃到
@@ -147,7 +149,7 @@ export function build(): void {
   const left = document.querySelector('#menu-bar .btn-container.left');
   if (left) {
     const wrap = document.createElement('div'); wrap.className = 'relative-container';
-    const btn = menuBtn = document.createElement('button'); btn.type = 'button'; btn.id = 'pv-camp-btn'; btn.className = 'btn'; btn.textContent = '闖關';
+    const btn = menuBtn = document.createElement('button'); btn.type = 'button'; btn.id = 'pv-camp-btn'; btn.className = 'btn'; btn.textContent = T.menuBtn;
     btn.onclick = function (e) { e.stopPropagation(); openFromMenu(true); };
     wrap.appendChild(btn);
     const netBtn = document.getElementById('pv-net-btn');

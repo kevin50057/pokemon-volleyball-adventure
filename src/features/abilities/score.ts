@@ -31,6 +31,9 @@ function transformIfDitto(player: Player): void {
   const next = pool[Math.floor(Math.random() * pool.length)];
   player.character = next;
   player.pvNoClamp = false;
+  // 變身不會經過技能系統的「換角色」重設，御三家的判定寬度、速度倍率要在這裡清掉
+  player.pvReachX = 0;
+  player.pvMoveMult = player.pvDiveMult = undefined;
   m.transformedTo = next;
   rt.state[pk(player)] = newSide();
   rt.state[pk(player)].char = next;

@@ -7,6 +7,7 @@ import { charById, typeColor } from '../chars-view';
 import { P1_KEYS, P2_KEYS } from './keys';
 import { SKILLS, assist, myPlayer } from './assist';
 import { createJoystick, createPad } from './widgets';
+import { T } from './texts';
 
 export function init(): void {
   if (!('ontouchstart' in window) && !navigator.maxTouchPoints) return;
@@ -119,7 +120,7 @@ export function init(): void {
   setInterval(() => {
     const c = svc.ctrl;
     if (!c || !c.physics) return;
-    const rows: Array<[string, string]> = [['左 1P', c.physics.player1.character], ['右 2P', c.physics.player2.character]];
+    const rows: Array<[string, string]> = [[T.p1, c.physics.player1.character], [T.p2, c.physics.player2.character]];
     const key = rows.map((r) => r[1]).join('|');
     if (key === lastInfo) return;
     lastInfo = key;

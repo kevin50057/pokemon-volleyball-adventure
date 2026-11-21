@@ -5,11 +5,30 @@
 import type { CharacterId } from '../../../core/types';
 import { svc, nextZ } from '../../../core/services';
 import { store } from '../../../core/storage';
-import { charById, charIds, charList } from '../chars-view';
+import { fmt, pick as pickLang } from '../../../core/i18n';
+import { charById, charIds, charList, typeLabel } from '../chars-view';
 import { CSS } from './style';
 import { loadPortraits, paint, paintFrame, portrait } from './portraits';
 
 type Side = 1 | 2;
+
+const T = pickLang({
+  zh: {
+    title: '選擇角色', hint: '先點上方 1P 或 2P，再點角色。按 C 或 Esc 關閉。', left: '左', right: '右', close: '關閉',
+    unknown: '？？？', notCaught: '尚未收服', lockedHead: '？？？・尚未收服', sep: '・',
+    howTo: '取得方式：{how}。', howToDefault: '要在闖關模式中收服。', medal: '闖關{tier}獎章',
+  },
+  en: {
+    title: 'Choose character', hint: 'Click 1P or 2P at the top, then a character. Press C or Esc to close.', left: 'Left', right: 'Right', close: 'Close',
+    unknown: '???', notCaught: 'Locked', lockedHead: '??? · Not caught yet', sep: ' · ',
+    howTo: 'How to get: {how}.', howToDefault: 'Catch it in Campaign mode.', medal: 'Campaign {tier} medal',
+  },
+  ko: {
+    title: '캐릭터 선택', hint: '위의 1P 또는 2P를 누른 뒤 캐릭터를 고르세요. C 또는 Esc로 닫기.', left: '왼쪽', right: '오른쪽', close: '닫기',
+    unknown: '???', notCaught: '미획득', lockedHead: '??? · 아직 잡지 못함', sep: ' · ',
+    howTo: '얻는 방법: {how}.', howToDefault: '캠페인 모드에서 잡을 수 있습니다.', medal: '캠페인 {tier} 메달',
+  },
+});
 
 // ---------- 目前選擇（讀遊戲本體標記的 .selected） ----------
 // 遊戲本體要按了第一個畫面的「開始」才會載入；在那之前角色按鈕沒有作用、也沒有 .selected。
@@ -90,14 +109,14 @@ function build(): void {
   const r = document.createElement('div');
   root = r;
   r.id = 'pv-cs';
-  r.innerHTML = '<div class="box" role="dialog" aria-label="選擇角色"><div class="top"></div><div class="grid"></div><div class="desc"></div><div class="hint">先點上方 1P 或 2P，再點角色。按 C 或 Esc 關閉。</div></div>';
+  r.innerHTML = '<div class="box" role="dialog" aria-label="' + T.title + '"><div class="top"></div><div class="grid"></div><div class="desc"></div><div class="hint">' + T.hint + '</div></div>';
   const top = q(r, '.top'), grid = q(r, '.grid');
   descEl = q(r, '.desc');
 
   ([1, 2] as const).forEach((n) => {
     const el = document.createElement('div');
     el.className = 'slot p' + n;
-    el.innerHTML = '<span class="who">' + n + 'P ' + (n === 1 ? '左' : '右') + '</span>';
+    el.innerHTML = '<span class="who">' + n + 'P ' + (n === 1 ? T.left : T.right) + '</span>';
     const cv = portrait('pikachu', 64);
     el.appendChild(cv);
     const info = document.createElement('div');
@@ -108,7 +127,7 @@ function build(): void {
     slots[n] = { el: el, cv: cv, nm: q(info, '.nm'), sk: q(info, '.sk') };
   });
   const x = document.createElement('button');
-  x.className = 'x'; x.type = 'button'; x.textContent = '✕'; x.title = '關閉';
+  x.className = 'x'; x.type = 'button'; x.textContent = '✕'; x.title = T.close;
   x.addEventListener('click', close);
   top.appendChild(x);
 
@@ -118,7 +137,7 @@ function build(): void {
     card.appendChild(portrait(c.id, 64));
     card.insertAdjacentHTML('beforeend',
       '<div class="nm">' + c.name + '</div><div class="sk">' + c.skill + '</div>' +
-      '<span class="ty" style="background:' + c.color + '">' + c.type + '</span>');
+      '<span class="ty" style="background:' + c.color + '">' + typeLabel(c.type) + '</span>');
     card.addEventListener('click', () => { if (unlocked(c.id)) pick(c.id); else showLocked(c.id); });
     card.addEventListener('mouseenter', () => { showDesc(c.id); });
     card.addEventListener('mouseleave', () => { showDesc(current(activeP)); });
@@ -132,13 +151,13 @@ function build(): void {
 
 function showLocked(id: string): void {
   const PC = svc.campaign, how = PC ? PC.howToGet(id) : '';
-  descEl.innerHTML = '<b>？？？・尚未收服</b>' + (how ? '取得方式：' + how + '。' : '要在闖關模式中收服。');
+  descEl.innerHTML = '<b>' + T.lockedHead + '</b>' + (how ? fmt(T.howTo, { how: how }) : T.howToDefault);
 }
 function showDesc(id: string): void {
   const c = charById(id);
   if (!c) return;
   if (!unlocked(id)) { showLocked(id); return; }
-  descEl.innerHTML = '<b style="color:' + c.color + '">' + c.name + '・' + c.skill + '</b>' + c.desc;
+  descEl.innerHTML = '<b style="color:' + c.color + '">' + c.name + T.sep + c.skill + '</b>' + c.desc;
 }
 
 function refresh(): void {
@@ -157,8 +176,8 @@ function refresh(): void {
     const ch = charById(id);
     if (!card || !ch) return;   // 每個角色在 build() 時都建了卡片
     card.classList.toggle('lk', lk);
-    q(card, '.nm').textContent = lk ? '？？？' : ch.name;
-    q(card, '.sk').textContent = lk ? '尚未收服' : ch.skill;
+    q(card, '.nm').textContent = lk ? T.unknown : ch.name;
+    q(card, '.sk').textContent = lk ? T.notCaught : ch.skill;
     card.classList.toggle('sel-p1', sel[1] === id);
     card.classList.toggle('sel-p2', sel[2] === id);
     card.querySelectorAll('.mk').forEach((m) => { m.remove(); });
@@ -168,7 +187,7 @@ function refresh(): void {
     const cm = card.querySelector('.cm'), PC = svc.campaign, tier = PC ? PC.medalTier(id) : 0;
     if (cm) cm.remove();
     const t = tier && PC ? PC.tiers[tier] : null;
-    if (t) card.insertAdjacentHTML('beforeend', '<span class="cm" style="color:' + t.color + '" title="闖關' + t.name + '獎章">★</span>');
+    if (t) card.insertAdjacentHTML('beforeend', '<span class="cm" style="color:' + t.color + '" title="' + fmt(T.medal, { tier: t.name }) + '">★</span>');
   });
   showDesc(sel[activeP]);
 }

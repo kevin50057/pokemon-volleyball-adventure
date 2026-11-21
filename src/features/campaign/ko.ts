@@ -6,6 +6,8 @@ import type { KoState } from './state';
 import { charName } from './chars';
 import { mix, setTint } from './field';
 import { confetti, label, slam, star4 } from './draw';
+import { fmt } from '../../core/i18n';
+import { T, josa } from './texts';
 
 // 物理和遊戲本體畫完之後：把被打倒的對手打飛（直接動畫面上的那張圖）
 export function post(c: Controller): void {
@@ -32,7 +34,7 @@ export function drawKo(c: Controller, g: CanvasRenderingContext2D, lite: boolean
   const k = camp.ko as KoState, K = CFG.ko, t = k.t;
   if (!k.win) {
     g.globalAlpha = Math.min(0.42, t / 20); g.fillStyle = '#1b2233'; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
-    if (t > 3) slam(g, '落敗…', NET_X, 112, 34, '#B0BEC5', t - 3);
+    if (t > 3) slam(g, T.defeat, NET_X, 112, 34, '#B0BEC5', t - 3);
     return;
   }
   if (t <= K.stop) {
@@ -63,16 +65,18 @@ export function drawKo(c: Controller, g: CanvasRenderingContext2D, lite: boolean
   // 對手飛出去之後天邊閃一下
   if (u > 20 && u < 34) { const tx = Math.min(W - 14, k.px + 20 * 7), q = 1 - Math.abs(u - 27) / 7; star4(g, tx, 14, 14 * q, '#fff'); star4(g, tx, 14, 7 * q, '#FFE082'); }
   confetti(g, u, k.boss ? 60 : 34);
-  slam(g, k.boss ? '打倒超夢！' : '勝利！', NET_X, 104, k.boss ? 48 : 40, '#FFD54F', u);
-  if (k.boss && u > 6) label(g, '冠軍之路　制霸', NET_X, 146, 15, '#fff');
+  slam(g, k.boss ? fmt(T.koBoss, { boss: charName('mewtwo') }) : T.koWin, NET_X, 104, k.boss ? 48 : 40, '#FFD54F', u);
+  if (k.boss && u > 6) label(g, T.koConquer, NET_X, 146, 15, '#fff');
   if (!k.boss && u > 6) {
-    label(g, '打倒了' + charName(camp.opp) + (k.isNew ? '　✦ 新夥伴！' : ''), NET_X, 138, 12, k.isNew ? '#FFE082' : '#fff');
+    const on = charName(camp.opp);
+    label(g, fmt(T.koBeat, { name: on, eul: josa(on, '을', '를') }) + (k.isNew ? T.koNew : ''), NET_X, 138, 12, k.isNew ? '#FFE082' : '#fff');
     // 進度：10 顆點，剛打完的這一顆彈一下
     for (let n = 0; n < STAGES; n++) {
       const dx = NET_X - (STAGES - 1) * 7 + n * 14, big = n === STAGES - 1, r = (big ? 5 : 3.5) + (n === k.idx ? Math.max(0, 14 - u) * 0.35 : 0);
       g.fillStyle = '#000'; g.beginPath(); g.arc(dx, 160, r + 1.5, 0, Math.PI * 2); g.fill();
       g.fillStyle = n <= k.idx ? '#7be495' : big ? '#B048FF' : 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(dx, 160, r, 0, Math.PI * 2); g.fill();
     }
-    label(g, '離超夢還有 ' + (STAGES - 2 - k.idx > 0 ? (STAGES - 2 - k.idx) + ' 關' : '0 關，下一場就是魔王'), NET_X, 176, 9, '#fff');
+    const togo = STAGES - 2 - k.idx;
+    label(g, fmt(togo > 0 ? T.koToBoss : T.koNextBoss, { boss: charName('mewtwo'), n: togo }), NET_X, 176, 9, '#fff');
   }
 }

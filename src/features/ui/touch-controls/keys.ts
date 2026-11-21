@@ -2,6 +2,7 @@
  * 觸控按鈕 → 模擬鍵盤事件。
  */
 import type { TouchKeySet } from '../../../core/services';
+import { T } from './texts';
 
 export const P1_KEYS: TouchKeySet = { up: 'KeyR', down: 'KeyV', left: 'KeyD', right: 'KeyG', action: 'KeyZ' };
 export const P2_KEYS: TouchKeySet = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', action: 'Enter' };
@@ -40,5 +41,5 @@ export function noteCancel(): void {
     cancelBadge.style.cssText = 'position:fixed;top:36px;left:50%;transform:translateX(-50%);z-index:10002;background:#d32f2f;color:#fff;font:bold 11px sans-serif;padding:1px 6px;border-radius:8px;pointer-events:none;opacity:.85';
     document.body.appendChild(cancelBadge);
   }
-  cancelBadge.textContent = '觸控被系統中斷 ×' + cancelCount;
+  cancelBadge.textContent = T.cancelled + cancelCount;
 }

@@ -8,6 +8,7 @@ import { closeRtc, connectRtc, onSignal, scheduleRetry } from './rtc';
 import { PREFIX } from './relay';
 import type { PeerState, SelfCtx, SelfRoom } from './types';
 import type { PeerInfo, PeersChange, PresencePatch, Room } from '../room-types';
+import { T } from '../text';
 
 const MIN_GAP = 12;   // 兩包之間最少間隔（毫秒）：平常一有資料就立刻送，只擋掉比這更密的
 function now(): number { return performance.now(); }
@@ -137,7 +138,7 @@ export function makeRoom(ctx: SelfCtx, name: string): SelfRoom {
   R.info = () => {
     const ids = Object.keys(R.peers), direct = ids.filter((id) => R.peers[id].dcOpen).length;
     const up = ctx.clients.filter((c) => c.up).length;
-    return (ids.length ? (direct === ids.length ? '直連' : direct ? '直連+中繼' : '中繼') : '等待') + ' · 中繼伺服器 ' + up + '/' + ctx.clients.length;
+    return (ids.length ? (direct === ids.length ? T.linkDirect : direct ? T.linkMixed : T.linkRelay) : T.linkWait) + T.relays + up + '/' + ctx.clients.length;
   };
 
   const api: Room = {

@@ -4,13 +4,17 @@
 // ============================================================
 import { CFG, RULES, STAGES, ZONE_START, ruleFor, tierInfo, tierOf, zoneIdx, zoneOf } from '../config';
 import type { RuleId } from '../config';
-import { CH, charName } from '../chars';
+import { CH, charName, typeName } from '../chars';
 import { camp, save } from '../state';
 import type { LoseInfo, Run } from '../state';
 import { howToGet, medalCount, medalTier, owned, ownedCount } from '../save';
 import { sfx } from '../sfx';
 import { startMatch } from '../match';
 import { R, S, esc, fill, firstLine, fmtTime, heartsHtml, isOpen, openRoot, shade, ui } from './dom';
+import { fmt } from '../../../core/i18n';
+import { T, josa, plural } from '../texts';
+
+const boss = function (): string { return charName('mewtwo'); };
 
 // ---------- 路線圖（大廳的大圖和 VS 上緣的進度列共用） ----------
 function nodeXY(i: number, strip?: boolean): { x: number; y: number } { return { x: i >= STAGES - 1 ? 93 : 5.5 + i * 9.3, y: 52 + Math.sin(i * 1.3 + 0.5) * (strip ? 0 : 19) }; }
@@ -27,12 +31,12 @@ function mapHtml(run: Run | null, strip: boolean, tokenAt?: number | null): stri
   h += '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="' + pts.map(function (p) { return p.x + ',' + p.y; }).join(' ') +
     '" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>';
   for (i = 0; i < STAGES; i++) {
-    const z = zoneOf(i), boss = !!z.boss, id = run ? run.order[i] : (boss ? 'mewtwo' : (z.fixed && z.fixed[i - ZONE_START[zoneIdx(i)]]) || '');
-    const known = boss || (run && i <= run.idx) || (id && z.fixed && z.fixed.indexOf(id) >= 0);
-    const cls = 'nd' + (boss ? ' bs' : '') + (run && i < run.idx ? ' done' : run && i === run.idx ? ' cur' : '');
+    const z = zoneOf(i), isBoss = !!z.boss, id = run ? run.order[i] : (isBoss ? 'mewtwo' : (z.fixed && z.fixed[i - ZONE_START[zoneIdx(i)]]) || '');
+    const known = isBoss || (run && i <= run.idx) || (id && z.fixed && z.fixed.indexOf(id) >= 0);
+    const cls = 'nd' + (isBoss ? ' bs' : '') + (run && i < run.idx ? ' done' : run && i === run.idx ? ' cur' : '');
     h += '<div class="' + cls + '"' + (strip ? '' : ' data-node="' + i + '"') + ' style="left:' + pts[i].x + '%;top:' + pts[i].y + '%">' + (id ? '<i data-sp="' + id + '" data-still' + (known ? '' : ' data-c="sil"') + '></i>' : '?') +
       (id && !owned(id) && !(run && i < run.idx) ? '<span class="nw">✦</span>' : '') +
-      (run && i === run.idx ? '<span class="lb">' + (boss ? '魔王' : '下一關') + '</span>' : boss ? '<span class="lb">魔王</span>' : '') + '</div>';
+      (run && i === run.idx ? '<span class="lb">' + (isBoss ? T.boss : T.nextStage) + '</span>' : isBoss ? '<span class="lb">' + T.boss + '</span>' : '') + '</div>';
   }
   if (run) {
     const at = pts[tokenAt == null ? run.idx : tokenAt];
@@ -40,22 +44,22 @@ function mapHtml(run: Run | null, strip: boolean, tokenAt?: number | null): stri
   }
   return h + '</div>';
 }
-function chips(): string { return '<div class="chips"><span class="chip">夥伴 <b>' + ownedCount() + '</b> / ' + CH.ids.length + '</span><span class="chip">獎章 <b>' + medalCount() + '</b> / ' + CH.ids.length + '</span></div>'; }
+function chips(): string { return '<div class="chips"><span class="chip">' + T.partners + ' <b>' + ownedCount() + '</b> / ' + CH.ids.length + '</span><span class="chip">' + T.medals + ' <b>' + medalCount() + '</b> / ' + CH.ids.length + '</span></div>'; }
 
 // ---------- 各個畫面 ----------
 function hubHtml(): string {
   const run = save.run;
-  let h = '<div class="scr sky hub"><div class="top"><div class="logo">冠軍之路</div>' + chips() + '<button class="x" data-a="close" type="button" title="離開">✕</button></div>';
+  let h = '<div class="scr sky hub"><div class="top"><div class="logo">' + T.logo + '</div>' + chips() + '<button class="x" data-a="close" type="button" title="' + T.exit + '">✕</button></div>';
   h += '<div class="mid">' + mapHtml(run, false) + '</div><div class="dock"><div class="ninfo"></div>';
   if (run) {
-    h += '<div class="who"><div class="av"><i data-sp="' + run.char + '"></i></div><div><b>' + esc(charName(run.char)) + '</b>　' + heartsHtml(run.hearts) +
-      '<br><small>第 ' + (run.idx + 1) + ' 關　對　' + esc(charName(run.order[run.idx])) + '</small></div></div>' +
-      '<button class="lnk" data-a="reset" type="button">' + (ui.confirmReset ? '再按一次確定' : '放棄這一輪') + '</button>' +
-      '<button class="gh" data-a="pick" type="button">夥伴</button>' +
-      '<button class="cta" data-a="vs" data-primary type="button">' + (zoneOf(run.idx).boss ? '挑戰超夢' : '繼續第 ' + (run.idx + 1) + ' 關') + '</button>';
+    h += '<div class="who"><div class="av"><i data-sp="' + run.char + '"></i></div><div><b>' + esc(charName(run.char)) + '</b>' + T.sp + heartsHtml(run.hearts) +
+      '<br><small>' + fmt(T.vs, { a: fmt(T.stage, { n: run.idx + 1 }), b: esc(charName(run.order[run.idx])) }) + '</small></div></div>' +
+      '<button class="lnk" data-a="reset" type="button">' + (ui.confirmReset ? T.confirmAgain : T.abandonRun) + '</button>' +
+      '<button class="gh" data-a="pick" type="button">' + T.partners + '</button>' +
+      '<button class="cta" data-a="vs" data-primary type="button">' + (zoneOf(run.idx).boss ? fmt(T.challengeBoss, { boss: esc(boss()) }) : fmt(T.continueStage, { n: run.idx + 1 })) + '</button>';
   } else {
-    h += '<div class="who"><div>選一個夥伴，連過 9 關後挑戰超夢。<br><small>打倒誰，誰就會成為你的夥伴。</small></div></div>' +
-      '<button class="cta" data-a="pick" data-primary type="button">開始冒險</button>';
+    h += '<div class="who"><div>' + fmt(T.hubIntro, { n: STAGES - 1, boss: esc(boss()) }) + '<br><small>' + T.hubIntroSub + '</small></div></div>' +
+      '<button class="cta" data-a="pick" data-primary type="button">' + T.startAdventure + '</button>';
   }
   return h + '</div></div>';
 }
@@ -64,8 +68,8 @@ function pickHtml(): string {
   const run = save.run, sel = camp.pick && CH.byId[camp.pick] ? camp.pick : (run ? run.char : CFG.starters[0]);
   camp.pick = sel;
   const list = CH.list.slice().sort(function (a, b) { return (owned(a.id) ? 0 : 1) - (owned(b.id) ? 0 : 1); });   // 有的排前面
-  let h = '<div class="scr sky pick"><div class="top"><button class="bk" data-a="hub" type="button">‹ 路線圖</button><div class="ttl">選擇夥伴</div>' + chips() +
-    '<button class="x" data-a="close" type="button" title="離開">✕</button></div>' + (medalCount() || run ? '' : '<div class="guide">先選一隻出發。闖關時打倒誰，誰就會成為新夥伴。</div>') + '<div class="body"><div class="grid">';
+  let h = '<div class="scr sky pick"><div class="top"><button class="bk" data-a="hub" type="button">‹ ' + T.map + '</button><div class="ttl">' + T.choosePartner + '</div>' + chips() +
+    '<button class="x" data-a="close" type="button" title="' + T.exit + '">✕</button></div>' + (medalCount() || run ? '' : '<div class="guide">' + T.pickGuide + '</div>') + '<div class="body"><div class="grid">';
   list.forEach(function (c) {
     const t = medalTier(c.id);
     h += '<div class="pc' + (owned(c.id) ? '' : ' lk') + (sel === c.id ? ' sel' : '') + '" data-pick="' + c.id + '"><i data-sp="' + c.id + '" data-still></i>' +
@@ -74,16 +78,16 @@ function pickHtml(): string {
   const c = CH.byId[sel], has = owned(sel), m = save.medals[sel], t2 = medalTier(sel);
   h += '</div><div class="det" style="--tc:' + c.color + '"><div class="big"><i data-sp="' + sel + '" data-c="' + (has ? '' : 'sil') + '"></i></div>';
   if (has) {
-    h += '<div class="nm">' + esc(c.name) + '<span class="ty" style="background:' + c.color + '">' + esc(c.type) + '</span></div><div class="sk" style="color:' + c.color + '">' + esc(c.skill) + '</div>' +
+    h += '<div class="nm">' + esc(c.name) + '<span class="ty" style="background:' + c.color + '">' + esc(typeName(c.type)) + '</span></div><div class="sk" style="color:' + c.color + '">' + esc(c.skill) + '</div>' +
       '<div class="ds">' + esc(c.desc) + '</div>' +
-      '<div class="rec">' + (m ? '<b style="color:' + tierInfo(t2).color + '">★ ' + tierInfo(t2).name + '獎章</b>　' + fmtTime(m.frames) + '・輸 ' + m.lost + ' 場' : '還沒挑戰過，用牠通關可以拿到獎章') + '</div>';
+      '<div class="rec">' + (m ? '<b style="color:' + tierInfo(t2).color + '">★ ' + tierInfo(t2).medal + '</b>' + T.sp + fmt(T.recLine, { time: fmtTime(m.frames), n: m.lost }) : T.noRecord) + '</div>';
     const same = run && run.char === sel;
     h += goalHtml();
-    if (run && !same) h += '<button class="gh" data-a="new" type="button">' + (ui.confirmReset ? '再按一次確定' : '換牠重新開始（放棄目前這一輪）') + '</button>';
-    else h += '<button class="cta" data-a="' + (same ? 'vs' : 'new') + '" data-primary type="button">' + (same ? '繼續冒險' : '出發！') + '</button>';
+    if (run && !same) h += '<button class="gh" data-a="new" type="button">' + (ui.confirmReset ? T.confirmAgain : T.switchRestart) + '</button>';
+    else h += '<button class="cta" data-a="' + (same ? 'vs' : 'new') + '" data-primary type="button">' + (same ? T.continueAdventure : T.go) + '</button>';
   } else {
-    h += '<div class="nm">？？？</div><div class="sk">還沒成為夥伴</div><div class="ds" style="text-align:center">取得方式：' + esc(howToGet(sel)) + '</div>' +
-      '<button class="cta" type="button" disabled>尚未收服</button>';
+    h += '<div class="nm">' + T.unknown + '</div><div class="sk">' + T.notPartner + '</div><div class="ds" style="text-align:center">' + fmt(T.howToGet, { how: esc(howToGet(sel)) }) + '</div>' +
+      '<button class="cta" type="button" disabled>' + T.locked + '</button>';
   }
   return h + '</div></div></div>';
 }
@@ -91,23 +95,23 @@ function pickHtml(): string {
 function ruleHtml(id: RuleId | null): string {
   const d = id && RULES[id];
   if (!d) return '';
-  return '<div class="rulep" style="--rc:' + d.color + '"><b>場地規則・' + esc(d.name) + '</b>' + esc(d.short) + '</div>';
+  return '<div class="rulep" style="--rc:' + d.color + '"><b>' + fmt(T.ruleHead, { name: esc(d.name) }) + '</b>' + esc(d.short) + '</div>';
 }
 // 只在 save.run 有值時呼叫（render() 會先擋掉）
 function vsHtml(): string {
   const run = save.run as Run, idx = run.idx, z = zoneOf(idx), me = CH.byId[run.char], opp = CH.byId[run.order[idx]], B = CFG.boss;
   const tip = firstLine(opp.desc);
-  const rule = z.boss ? '超夢 ' + B.hp + ' 格血、你 ' + B.playerHp + ' 格，得一分打掉對方一格' + (run.bossPhase > 1 ? '（從第 ' + run.bossPhase + ' 階段開始）' : '')
-    : '先得 ' + z.score + ' 分過關' + (idx === 0 ? '。左右移動，跳起來再按殺球鍵把球砸過去' : '');
+  const rule = z.boss ? fmt(T.bossRule, { boss: boss(), hp: B.hp, php: B.playerHp }) + (run.bossPhase > 1 ? fmt(T.bossRuleFrom, { p: run.bossPhase }) : '')
+    : fmt(T.stageRule, { n: z.score as number }) + (idx === 0 ? T.tutorialRule : '');
   let h = '<div class="scr vs" style="--c1:' + shade(me.color, 0.85) + ';--c1d:' + shade(me.color, 0.4) + ';--c2:' + shade(opp.color, 0.85) + ';--c2d:' + shade(opp.color, 0.4) + '">' +
     '<div class="hf l"></div><div class="hf r"></div>' +
-    '<div class="vtop"><button class="bk" data-a="hub" type="button">‹ 路線圖</button><div class="stg">' + (z.boss ? '最終戰' : '第 ' + (idx + 1) + ' 關') + '<small>' + esc(z.name) + '</small></div><span class="chip" title="照目前的敗場，通關可以拿到的獎章"><b style="color:' + tierInfo(tierOf(run.lost)).color + '">★</b> 目前可拿' + tierInfo(tierOf(run.lost)).name + '獎章</span>' + heartsHtml(run.hearts) + '</div>' +
+    '<div class="vtop"><button class="bk" data-a="hub" type="button">‹ ' + T.map + '</button><div class="stg">' + (z.boss ? T.zoneFinal : fmt(T.stage, { n: idx + 1 })) + '<small>' + esc(z.name) + '</small></div><span class="chip" title="' + T.medalChipTitle + '"><b style="color:' + tierInfo(tierOf(run.lost)).color + '">★</b> ' + fmt(T.medalChip, { medal: tierInfo(tierOf(run.lost)).medal }) + '</span>' + heartsHtml(run.hearts) + '</div>' +
     mapHtml(run, true, camp.travelFrom) + ruleHtml(ruleFor(idx, opp.id)) +
     '<div class="arena"><div class="ft l"><div class="im"><i data-sp="' + me.id + '"></i></div><div class="nm">' + esc(me.name) + '</div></div>' +
     '<div class="vsx">VS</div>' +
-    '<div class="ft r"><div class="im"><i data-sp="' + opp.id + '" data-c="flip"></i></div><div class="nm">' + esc(opp.name) + '</div>' + (owned(opp.id) ? '' : '<div class="tg">打倒就能收服！</div>') + '</div></div>' +
-    '<div class="vbot"><div class="tip"><span class="tx"><b style="color:' + opp.color + '">' + esc(opp.skill) + '</b>' + esc(tip) + '</span><span class="rl">' + esc(rule) + '</span></div><button class="q" data-a="more" type="button" title="完整說明">？</button>' +
-    '<button class="cta" data-a="fight" data-primary type="button"' + (camp.wantStart ? ' disabled' : '') + '>' + (camp.wantStart ? '載入中…' : '開打') + '</button></div>';
+    '<div class="ft r"><div class="im"><i data-sp="' + opp.id + '" data-c="flip"></i></div><div class="nm">' + esc(opp.name) + '</div>' + (owned(opp.id) ? '' : '<div class="tg">' + T.recruitTag + '</div>') + '</div></div>' +
+    '<div class="vbot"><div class="tip"><span class="tx"><b style="color:' + opp.color + '">' + esc(opp.skill) + '</b>' + esc(tip) + '</span><span class="rl">' + esc(rule) + '</span></div><button class="q" data-a="more" type="button" title="' + T.moreTitle + '">' + T.q + '</button>' +
+    '<button class="cta" data-a="fight" data-primary type="button"' + (camp.wantStart ? ' disabled' : '') + '>' + (camp.wantStart ? T.loading : T.fight) + '</button></div>';
   if (camp.toast) h += '<div class="toast">' + esc(camp.toast) + '</div>';
   return h + '</div>';
 }
@@ -116,40 +120,46 @@ function vsHtml(): string {
 function loseHtml(): string {
   // camp.lose 在輸掉時一定會設定；舊版沒有的話會在 L.sc[0] 丟例外，這裡保留同樣的寫法
   const run = save.run as Run, L: Partial<LoseInfo> = camp.lose || {};
-  let h = '<div class="scr dim"><div class="cd"><h3>' + (L.out ? '心用完了' : '落敗…') + '</h3>';
-  h += '<div>' + heartsHtml(L.out ? 0 : run.hearts, true) + '</div>' + (L.out ? '' : '<p style="margin:0;font-weight:800">還剩 ' + run.hearts + ' 顆心</p>');
+  let h = '<div class="scr dim"><div class="cd"><h3>' + (L.out ? T.outOfHearts : T.defeat) + '</h3>';
+  h += '<div>' + heartsHtml(L.out ? 0 : run.hearts, true) + '</div>' + (L.out ? '' : '<p style="margin:0;font-weight:800">' + fmt(T.heartsLeft, { n: run.hearts, s: plural(run.hearts) }) + '</p>');
   const need = L.need as number, sc = L.sc as number[];
   const left = need - (L.sc ? L.sc[0] : 0);
   let msg: string;
-  if (L.boss) msg = left <= 2 ? '就差一點！超夢只剩 ' + left + ' 格血。' : '超夢還剩 ' + left + ' 格血。';
-  else msg = left <= 1 ? '就差一點！只差 1 分就打倒' + charName(L.opp as string) + '了。' : sc[0] * 2 >= need ? '已經拿下 ' + sc[0] + ' 分，再 ' + left + ' 分就能打倒' + charName(L.opp as string) + '。' : charName(L.opp as string) + '這場佔了上風。看一下牠的技能，換個打法再試一次。';
+  if (L.boss) msg = fmt(left <= 2 ? T.bossClose : T.bossLeft, { boss: boss(), n: left });
+  else {
+    const on = charName(L.opp as string), v = { opp: on, eul: josa(on, '을', '를'), i: josa(on, '이', '가'), sc: sc[0], n: left };
+    msg = fmt(left <= 1 ? T.oneShort : sc[0] * 2 >= need ? T.halfway : T.upperHand, v);
+  }
   h += '<p>' + esc(msg) + '</p>';
-  if (L.out) h += '<p>補滿 ' + CFG.hearts + ' 顆心，' + (L.boss ? '從超夢的第一階段重新挑戰。' : '回到「' + esc(zoneOf(run.idx).name) + '」第一關。') + '</p>';
-  else if (L.boss && run.bossPhase > 1) h += '<p>下一場從第 ' + run.bossPhase + ' 階段開始。</p>';
-  h += '<p class="keep">已經收服的夥伴不會消失。</p>';
-  h += '<div class="row"><button class="gh" data-a="hub" type="button">路線圖</button><button class="cta" data-a="' + (L.out && !L.boss ? 'back-vs' : 'fight') + '" data-primary type="button">' + (L.out && !L.boss ? '繼續' : '再打一次') + '</button></div>';
+  if (L.out) h += '<p>' + (L.boss ? fmt(T.refillBoss, { n: CFG.hearts, boss: esc(boss()) }) : fmt(T.refillZone, { n: CFG.hearts, zone: esc(zoneOf(run.idx).name) })) + '</p>';
+  else if (L.boss && run.bossPhase > 1) h += '<p>' + fmt(T.nextFromPhase, { p: run.bossPhase }) + '</p>';
+  h += '<p class="keep">' + T.partnersKept + '</p>';
+  h += '<div class="row"><button class="gh" data-a="hub" type="button">' + T.map + '</button><button class="cta" data-a="' + (L.out && !L.boss ? 'back-vs' : 'fight') + '" data-primary type="button">' + (L.out && !L.boss ? T.cont : T.tryAgain) + '</button></div>';
   return h + '</div></div>';
 }
 
 function pauseHtml(): string {
   const run = save.run;
-  return '<div class="scr dim"><div class="cd"><h3>暫停</h3>' +
-    (run ? '<p>' + esc(charName(run.char)) + '　對　' + esc(charName(run.order[run.idx])) + '　' + heartsHtml(run.hearts) + '</p>' : '') +
-    '<p class="keep">現在離開，這一場會算輸：扣一顆心、敗場加一。</p>' +
-    '<div class="row"><button class="gh" data-a="quit" type="button">離開闖關</button><button class="cta" data-a="resume" data-primary type="button">回到比賽</button></div></div></div>';
+  return '<div class="scr dim"><div class="cd"><h3>' + T.paused + '</h3>' +
+    (run ? '<p>' + fmt(T.vs, { a: esc(charName(run.char)), b: esc(charName(run.order[run.idx])) }) + T.sp + heartsHtml(run.hearts) + '</p>' : '') +
+    '<p class="keep">' + T.quitWarn + '</p>' +
+    '<div class="row"><button class="gh" data-a="quit" type="button">' + T.quitCampaign + '</button><button class="cta" data-a="resume" data-primary type="button">' + T.resume + '</button></div></div></div>';
 }
 
 // 通關後的下一個目標：讓人知道再打一輪能拿到什麼
-export function nextGoal(): string {
+function goals(): string[] {
   const g: string[] = [], left = CH.ids.length - ownedCount();
   let silver = 0;
   Object.keys(save.medals).forEach(function (id) { if (medalTier(id) >= 2) silver++; });
-  if (!owned('ditto')) g.push('再 ' + Math.max(1, 3 - medalCount()) + ' 面獎章 → 百變怪');
-  if (!owned('mew')) g.push('一場不輸拿金獎章' + (silver ? '，或再 ' + Math.max(1, 3 - silver) + ' 面銀獎章' : '') + ' → 夢幻');
-  if (!g.length) g.push(left > 0 ? '還有 ' + left + ' 隻夥伴等你收服' : '獎章 ' + medalCount() + ' / ' + CH.ids.length + '，換一隻夥伴再挑戰');
-  return '<div class="goal">下一個目標：' + esc(g.join('　｜　')) + '</div>';
+  const nd = Math.max(1, 3 - medalCount()), ns = Math.max(1, 3 - silver);
+  if (!owned('ditto')) g.push(fmt(T.goalDitto, { n: nd, s: plural(nd), name: charName('ditto') }));
+  if (!owned('mew')) g.push(T.goalGold + (silver ? fmt(T.goalSilver, { n: ns, s: plural(ns) }) : '') + ' → ' + charName('mew'));
+  if (!g.length) g.push(left > 0 ? fmt(T.goalLeft, { n: left, s: plural(left) }) : fmt(T.goalAll, { m: medalCount(), total: CH.ids.length }));
+  return g;
 }
-function goalHtml(): string { return nextGoal().replace('class="goal"', 'class="goal"').replace('下一個目標：', '下一個目標<br>').replace(/　｜　/g, '<br>'); }
+export function nextGoal(): string { return '<div class="goal">' + T.goalPrefix + esc(goals().join(T.sep)) + '</div>'; }
+// 選夥伴畫面的版本：標題和每一項各占一行
+function goalHtml(): string { return '<div class="goal">' + T.goalTitle + '<br>' + goals().map(esc).join('<br>') + '</div>'; }
 
 export function render(): void {
   if (!ui.root) return;
@@ -158,7 +168,7 @@ export function render(): void {
   let v = camp.view;
   if ((v === 'vs' || v === 'lose') && !save.run) v = camp.view = 'pick';
   const again = camp.shown === v && isOpen();
-  scr.innerHTML = v === 'hub' ? hubHtml() : v === 'pick' ? pickHtml() : v === 'vs' ? vsHtml() : v === 'lose' ? loseHtml() : v === 'pause' ? pauseHtml() : v === 'net' ? '<div class="scr dim"><div class="cd"><h3>連線房間開著</h3><p>先離開連線房間，才能進闖關模式。</p><div class="row"><button class="cta" data-a="close" data-primary type="button">知道了</button></div></div></div>' : '';
+  scr.innerHTML = v === 'hub' ? hubHtml() : v === 'pick' ? pickHtml() : v === 'vs' ? vsHtml() : v === 'lose' ? loseHtml() : v === 'pause' ? pauseHtml() : v === 'net' ? '<div class="scr dim"><div class="cd"><h3>' + T.netTitle + '</h3><p>' + T.netBody + '</p><div class="row"><button class="cta" data-a="close" data-primary type="button">' + T.ok + '</button></div></div></div>' : '';
   if (again && scr.firstChild) (scr.firstChild as HTMLElement).style.animation = 'none';
   fill(scr);
   if (v === 'vs') {
@@ -179,7 +189,7 @@ export function render(): void {
       let left = Math.round(CFG.autoVs / 1000);
       const rl = scr.querySelector('.tip .rl');
       if (btn) btn.insertAdjacentHTML('beforeend', '<small>' + left + '</small>');
-      if (rl) rl.insertAdjacentHTML('beforeend', '<span class="an">　｜　倒數完自動開打，點一下畫面取消</span>');
+      if (rl) rl.insertAdjacentHTML('beforeend', '<span class="an">' + T.sep + T.autoNote + '</span>');
       const tickAuto = function () {
         if (camp.view !== 'vs' || !isOpen() || R().querySelector('.ov')) return;
         if (--left <= 0) { startMatch(); return; }

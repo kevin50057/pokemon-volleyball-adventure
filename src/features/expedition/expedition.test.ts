@@ -5,7 +5,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { DbError, ExpeditionDb } from './db';
 import { activeBonds, capped, cardMods, offerCards } from './cards';
-import { CAPS, CARDS, CHAR_TAG, DEX_WHERE, EVENTS, FORK_OF, MAX_BALL_SPEED, NODES, RULE_POOL, STOPS, cardById, matchNode, maxHearts, nodeById } from './content';
+import { CAPS, CHAPTERS, CARDS, chapterOf, CHAR_TAG, DEX_WHERE, EVENTS, FORK_OF, MAX_BALL_SPEED, NODES, RULE_POOL, STOPS, cardById, matchNode, maxHearts, nodeById } from './content';
 import { resolveMatch, routeOf } from './route';
 import { RuleError, applySettlement, beginMatch, chooseBranch, eventOf, leaveSupply, newProfile, newRun, pickReward, resolveEvent, setLead, swapIn, validateRun } from './logic';
 import { clampBall } from './field';
@@ -13,7 +13,7 @@ import { rngFor } from './rng';
 import { START_HEARTS } from './content';
 import type { ExpeditionRun } from './types';
 
-const IDS = ['gengar', 'electrode', 'wobbuffet', 'pikachu', 'vaporeon', 'jolteon', 'flareon', 'charmander', 'bulbasaur', 'squirtle', 'magikarp', 'psyduck', 'meowth', 'jigglypuff', 'snorlax', 'farfetchd', 'dugtrio', 'mrmime', 'dragonite'];
+const IDS = ['bird', 'umbreon', 'gengar', 'electrode', 'wobbuffet', 'pikachu', 'vaporeon', 'jolteon', 'flareon', 'charmander', 'bulbasaur', 'squirtle', 'magikarp', 'psyduck', 'meowth', 'jigglypuff', 'snorlax', 'farfetchd', 'dugtrio', 'mrmime', 'dragonite'];
 
 async function freshDb(factory = new IDBFactory()): Promise<{ db: ExpeditionDb; factory: IDBFactory }> {
   return { db: await ExpeditionDb.open(factory, 'test'), factory };
@@ -112,7 +112,7 @@ describe('rules', () => {
     const old = validateRun({ ...r, schemaVersion: 1 }, IDS);
     expect(!old.ok && old.reason).toBe('unsupported');     // 章節制之前的存檔：保留、不能接著玩
   });
-  it('a full winning route through the whole first chapter', () => {
+  it('a full winning route through both chapters', () => {
     let r = newRun('r', 's', ['pikachu', 'vaporeon'], 0), p = newProfile();
     const win = (): void => {
       r = beginMatch(r, r.revision);
@@ -138,13 +138,33 @@ describe('rules', () => {
     win();
     expect(r.nodeId).toBe('camp');
     r = leaveSupply(r, r.revision, r.equippedCardIds);
+    r = { ...r, hearts: 1 };                             // 帶著 1 顆心打倒第一章首領
     win();
-    expect(r.phase).toBe('cleared');
+    // 第一章首領 → 第二章開頭：心回滿、卡槽變 3、記新的快照
+    expect(r.phase).toBe('map');
+    expect(r.chapter).toBe(1);
+    expect(r.nodeId).toBe('gate');
+    expect(r.hearts).toBe(START_HEARTS);
     expect(r.visitedNodeIds).toEqual(['warmup', 'f1b', 'event1', 'f2b', 'supply', 'elite', 'f3b', 'camp', 'boss']);
+    expect(r.checkpoint.visitedNodeIds).toEqual(r.visitedNodeIds);
     expect(r.ownedCardIds.length).toBe(5);
     expect(r.equippedCardIds.length).toBe(2);
-    expect(r.hearts).toBe(START_HEARTS);
-    expect(p.expeditionUnlocked).toEqual(expect.arrayContaining(['magikarp', 'farfetchd', 'dragonite']));
+    expect(validateRun(r, IDS).ok).toBe(true);
+    win();                                               // 發電廠：拿卡時有第 3 格，自動裝上
+    expect(r.equippedCardIds.length).toBe(3);
+    r = chooseBranch(r, r.revision, 'f4a');
+    win();
+    r = resolveEvent(r, r.revision, 'leave');
+    r = chooseBranch(r, r.revision, 'thunder');
+    win();
+    r = leaveSupply(r, r.revision, r.equippedCardIds);
+    win(); win(); win();                                 // 四天王
+    expect(r.nodeId).toBe('c2camp2');
+    r = leaveSupply(r, r.revision, r.equippedCardIds);
+    win();
+    expect(r.phase).toBe('cleared');
+    expect(p.expeditionUnlocked).toEqual(expect.arrayContaining(['magikarp', 'farfetchd', 'dragonite', 'electrode', 'bird', 'gengar', 'umbreon']));
+    expect(p.stamps).toEqual({ pikachu: 1 });
   });
   it('events: fixed by the seed, heal is capped, card choices go through reward', () => {
     const at = (seed: string, hearts = START_HEARTS) => ({ ...newRun('r', seed, 'pikachu', 0), nodeId: 'event1', hearts });
@@ -427,7 +447,7 @@ describe('cards and bonds', () => {
       if (n.kind === 'supply') expect(nodeById(n.next)).toBeTruthy();
     });
     STOPS.forEach((st) => st.forEach((id) => expect(nodeById(id)).toBeTruthy()));
-    Object.keys(FORK_OF).forEach((f) => { const n = nodeById(f); expect(n && n.kind).toBe('fork'); (n as { options: string[] }).options.forEach((o) => expect(STOPS[FORK_OF[f]]).toContain(o)); });
+    Object.keys(FORK_OF).forEach((f) => { const n = nodeById(f); expect(n && n.kind).toBe('fork'); (n as { options: string[] }).options.forEach((o) => expect(CHAPTERS[chapterOf(f)].stops[FORK_OF[f]]).toContain(o)); });
     NODES.forEach((n) => { if (n.kind === 'event') n.pool.forEach((e) => expect(EVENTS[e]).toBeTruthy()); });
     Object.keys(DEX_WHERE).forEach((ch) => { expect(IDS).toContain(ch); const w = DEX_WHERE[ch]; if (w !== 'fork') expect((matchNode(w) as { opp: string }).opp).toBe(ch); });
     Object.keys(CHAR_TAG).forEach((ch) => expect(IDS).toContain(ch));
@@ -560,9 +580,13 @@ describe('route, returning partners, rare rewards and ranks', () => {
     for (let i = 0; i < 200; i++) {
       const seed = 'route' + i, a = routeOf(seed);
       expect(routeOf(seed)).toEqual(a);
+      // 同一章裡對手不重複
+      [['f1a', 'f1b', 'f2a', 'f2b', 'f3a', 'f3b'], ['f4a', 'f4b', 'f5b']].forEach((ids) => {
+        const o = ids.map((id) => a[id].opp);
+        expect(new Set(o).size).toBe(o.length);
+      });
       const opps = Object.values(a).map((x) => x.opp);
-      expect(new Set(opps).size).toBe(opps.length);
-      (['fork1', 'fork2', 'fork3'] as const).forEach((f) => {
+      (['fork1', 'fork2', 'fork3', 'fork4'] as const).forEach((f) => {
         const [x, y] = (nodeById(f) as { options: string[] }).options.map((id) => a[id]);
         expect(x.opp).not.toBe(y.opp);
         expect(x.rule || null).not.toBe(y.rule || null);
@@ -592,14 +616,14 @@ describe('route, returning partners, rare rewards and ranks', () => {
     }
   });
   it('ranks: a clear opens the next rank and stamps the partner; rank 3 has 2 hearts', () => {
-    let r = { ...newRun('r', 's', 'jolteon', 0, 'ironman', 1), nodeId: 'boss' };
+    let r = { ...newRun('r', 's', 'jolteon', 0, 'ironman', 1), chapter: 1, nodeId: 'champion' };
     r = beginMatch(r, r.revision);
     const out = applySettlement(r, newProfile(), r.matchId as string, 'win');
     expect(out.run.phase).toBe('cleared');
     expect(out.profile.rankUnlocked).toBe(2);
     expect(out.profile.stamps).toEqual({ jolteon: 2 });
     expect(out.profile.ironmanClears).toEqual(['jolteon']);
-    expect(out.profile.expeditionUnlocked).toEqual(['dragonite']);
+    expect(out.profile.expeditionUnlocked).toEqual(['umbreon']);
     const r3 = newRun('r', 's', 'pikachu', 0, 'chapter', 3);
     expect(r3.hearts).toBe(2);
     expect(maxHearts(3)).toBe(2);

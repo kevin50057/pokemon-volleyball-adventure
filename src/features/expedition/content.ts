@@ -4,6 +4,9 @@
  *
  * 第一章「道館巡禮」（PLAN M3：九站、約 35～55 分鐘，還沒有真人計時）：
  *   熱身草原 → 岔路① → 奇遇 → 岔路② → 補給營地 → 強風山口 → 岔路③ → 龍之巢前的營火 → 龍之巢
+ * 第二章「四天王與秘境」（十站）：
+ *   發電廠（頑皮雷彈）→ 岔路④ → 奇遇 → 岔路⑤（雷電秘境：閃電鳥／一般）→ 營地
+ *   → 四天王（果然翁 → 耿鬼 → 魔牆人偶，中間不能補給）→ 冠軍前的營火 → 冠軍（月伊布首領）
  * 岔路的兩個選項是「空位」：對手和場地規則由每一輪的種子抽（route.ts），每輪不一樣。
  */
 import type { CharacterId } from '../../core/types';
@@ -45,6 +48,10 @@ export interface BossDef {
   phase2AtHp: number;
   /** 第二階段的球速係數（只動球，不動全域計時） */
   ballSpeed: number;
+  /** 第二階段的名字（逆鱗、月光…），對應 texts 的 phase2Title／phase2Note */
+  phase2: string;
+  /** 場地色調：第一階段、第二階段 */
+  tint: readonly [number, number];
 }
 
 export type Capture = 'sure' | 'chance';
@@ -93,10 +100,15 @@ export const CAPTURE_CHANCE = 0.6;
 
 /** 岔路的場地規則池（強風留給菁英；null = 沒有規則） */
 export const RULE_POOL: readonly (RuleId | null)[] = ['rain', 'gold', 'lowgrav', null];
-const P1: readonly CharacterId[] = ['psyduck', 'meowth', 'jigglypuff', 'electrode', 'wobbuffet'];
+// 第一章的岔路池（耿鬼、頑皮雷彈照 SPEC §3 留到第二章）
+const P1: readonly CharacterId[] = ['psyduck', 'meowth', 'jigglypuff', 'wobbuffet', 'dugtrio'];
 const P2: readonly CharacterId[] = ['snorlax', 'jigglypuff', 'mrmime', 'psyduck', 'meowth', 'wobbuffet'];
-const P3: readonly CharacterId[] = ['dugtrio', 'mrmime', 'gengar', 'electrode', 'snorlax', 'wobbuffet'];
+// 第三個岔路包含整章所有可能的對手：前兩個岔路最多用掉 4 隻，這裡一定還剩兩隻不重複的
+const P3: readonly CharacterId[] = ['dugtrio', 'mrmime', 'snorlax', 'wobbuffet', 'psyduck', 'meowth', 'jigglypuff'];
+// 第二章的岔路池（四天王的三隻不會出現在岔路）
+const P4: readonly CharacterId[] = ['psyduck', 'meowth', 'jigglypuff', 'snorlax', 'dugtrio', 'farfetchd'];
 const D1: Diff = { move: 0.70, spike: 0.45, lapse: 0.42 }, D2: Diff = { move: 0.78, spike: 0.55, lapse: 0.35 }, D3: Diff = { move: 0.90, spike: 0.74, lapse: 0.22 };
+const D4: Diff = { move: 0.92, spike: 0.78, lapse: 0.18 }, DK: Diff = { move: 0.96, spike: 0.86, lapse: 0.12 };
 function slot(id: string, fork: string, pool: readonly CharacterId[], diff: Diff, next: string): MatchNode {
   return { id, kind: 'match', opp: pool[0], score: 5, diff, reward: true, capture: 'chance', next, slot: { fork, pool } };
 }
@@ -113,7 +125,23 @@ export const NODES: readonly NodeDef[] = [
   { id: 'fork3', kind: 'fork', options: ['f3a', 'f3b'] },
   slot('f3a', 'fork3', P3, D3, 'camp'), slot('f3b', 'fork3', P3, D3, 'camp'),
   { id: 'camp', kind: 'supply', next: 'boss' },
-  { id: 'boss', kind: 'match', opp: 'dragonite', score: 7, diff: { move: 0.94, spike: 0.82, lapse: 0.16 }, boss: { playerHp: 5, hp: 7, phase2AtHp: 3, ballSpeed: 1.10 }, reward: false, capture: 'sure', next: null },
+  { id: 'boss', kind: 'match', opp: 'dragonite', score: 7, diff: { move: 0.94, spike: 0.82, lapse: 0.16 }, boss: { playerHp: 5, hp: 7, phase2AtHp: 3, ballSpeed: 1.10, phase2: 'outrage', tint: [0x8FA0E8, 0xE08A7A] }, reward: false, capture: 'sure', next: null },
+  // ---- 第二章 ----
+  { id: 'gate', kind: 'match', opp: 'electrode', score: 5, diff: { move: 0.86, spike: 0.66, lapse: 0.26 }, reward: true, capture: 'sure', next: 'fork4' },
+  { id: 'fork4', kind: 'fork', options: ['f4a', 'f4b'] },
+  slot('f4a', 'fork4', P4, D4, 'event2'), slot('f4b', 'fork4', P4, D4, 'event2'),
+  { id: 'event2', kind: 'event', pool: ['picnic', 'trainer', 'spring', 'stall', 'dojo'], next: 'fork5' },
+  { id: 'fork5', kind: 'fork', options: ['thunder', 'f5b'] },
+  // 雷電秘境：比較難（搶 7、強風），贏了一定收服閃電鳥，而且給機制卡
+  { id: 'thunder', kind: 'match', opp: 'bird', score: 7, rule: 'wind', diff: { move: 0.94, spike: 0.82, lapse: 0.16 }, reward: 'rare', capture: 'sure', next: 'c2camp' },
+  slot('f5b', 'fork5', P4, D4, 'c2camp'),
+  { id: 'c2camp', kind: 'supply', next: 'k1' },
+  // 四天王：連戰，中間不能補給，心一路帶著
+  { id: 'k1', kind: 'match', opp: 'wobbuffet', score: 5, diff: DK, reward: true, capture: 'chance', next: 'k2' },
+  { id: 'k2', kind: 'match', opp: 'gengar', score: 5, rule: 'lowgrav', diff: DK, reward: false, capture: 'sure', next: 'k3' },
+  { id: 'k3', kind: 'match', opp: 'mrmime', score: 5, rule: 'gold', diff: DK, reward: 'rare', capture: 'chance', next: 'c2camp2' },
+  { id: 'c2camp2', kind: 'supply', next: 'champion' },
+  { id: 'champion', kind: 'match', opp: 'umbreon', score: 8, diff: { move: 1, spike: 0.9, lapse: 0.08 }, boss: { playerHp: 5, hp: 8, phase2AtHp: 3, ballSpeed: 1.12, phase2: 'moonlight', tint: [0x7A70B8, 0x4B3F8A] }, reward: false, capture: 'sure', next: null },
 ];
 export const FIRST_NODE = 'warmup';
 /** 地圖上的站數（岔路的兩條算同一站；岔路口本身不算一站） */
@@ -125,13 +153,26 @@ export const STOPS: readonly (readonly string[])[] = [
  * 每章開始時心回滿；卡槽隨章成長（2 → 3 → 4）。目前只有第一章。
  */
 export interface ChapterDef { id: string; first: string; slots: number; stops: readonly (readonly string[])[] }
+export const STOPS2: readonly (readonly string[])[] = [
+  ['gate'], ['f4a', 'f4b'], ['event2'], ['thunder', 'f5b'], ['c2camp'], ['k1'], ['k2'], ['k3'], ['c2camp2'], ['champion'],
+];
 export const CHAPTERS: readonly ChapterDef[] = [
   { id: 'c1', first: 'warmup', slots: 2, stops: STOPS },
+  { id: 'c2', first: 'gate', slots: 3, stops: STOPS2 },
 ];
+/** 這個節點在第幾章（岔路口算在它分出去的那一章） */
+export function chapterOf(id: string): number {
+  for (let i = 0; i < CHAPTERS.length; i++) {
+    if (CHAPTERS[i].stops.some((st) => st.indexOf(id) >= 0)) return i;
+    const n = nodeById(id);
+    if (n && n.kind === 'fork' && CHAPTERS[i].stops.some((st) => st.indexOf(n.options[0]) >= 0)) return i;
+  }
+  return 0;
+}
 export function cardSlots(chapter: number): number { const c = CHAPTERS[chapter]; return c ? c.slots : CHAPTERS[0].slots; }
 
 /** 岔路口 → 它分出去的那一站 */
-export const FORK_OF: Readonly<Record<string, number>> = { fork1: 1, fork2: 3, fork3: 6 };
+export const FORK_OF: Readonly<Record<string, number>> = { fork1: 1, fork2: 3, fork3: 6, fork4: 1, fork5: 3 };
 
 export function nodeById(id: string): NodeDef | undefined { return NODES.find((n) => n.id === id); }
 /** 不帶種子：岔路空位只回傳樣板（對手是佔位）。要知道這一輪實際的對手，用 route.ts 的 resolveMatch */
@@ -185,9 +226,9 @@ export const CAPS: Readonly<Record<Stat, readonly [number, number]>> = {
 
 // ---------- 圖鑑 ----------
 /** 這一版收得到的角色 → 在哪裡（fork = 第一章的岔路，每一輪抽到的不一樣） */
-export const DEX_WHERE: Readonly<Record<string, 'warmup' | 'elite' | 'boss' | 'fork'>> = (() => {
-  const w: Record<string, 'warmup' | 'elite' | 'boss' | 'fork'> = { magikarp: 'warmup', farfetchd: 'elite', dragonite: 'boss' };
-  P1.concat(P2, P3).forEach((id) => { if (!w[id]) w[id] = 'fork'; });
+export const DEX_WHERE: Readonly<Record<string, string>> = (() => {
+  const w: Record<string, string> = { magikarp: 'warmup', farfetchd: 'elite', dragonite: 'boss', electrode: 'gate', bird: 'thunder', gengar: 'k2', umbreon: 'champion' };
+  P1.concat(P2, P3, P4).forEach((id) => { if (!w[id]) w[id] = 'fork'; });
   return w;
 })();
 

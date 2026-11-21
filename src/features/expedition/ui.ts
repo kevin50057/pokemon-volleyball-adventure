@@ -11,7 +11,7 @@ import * as match from './adapter';
 import { drawCapture, drawMap, drawPostcard, face, sceneNumbers } from './art';
 import { STATS, cardMods } from './cards';
 import {
-  CAPTURE_CHANCE, CHAPTERS, DEX_WHERE, cardSlots, EVENTS, FORK_OF, PARTY_MAX, RANK_MAX, STARTERS, STOPS,
+  CAPTURE_CHANCE, CHAPTERS, DEX_WHERE, cardSlots, EVENTS, FORK_OF, PARTY_MAX, RANK_MAX, STARTERS,
   cardById, matchNode, maxHearts, nodeById, rankBoss, rankDiff, type EventChoice, type MatchNode, type MechId,
 } from './content';
 import { DbError, ExpeditionDb, type LoadState } from './db';
@@ -82,9 +82,10 @@ function matchName(node: MatchNode): string {
   return T.placeByOpp[node.opp] || nodeName(node.id);
 }
 function nameOf(id: string, seed: string): string { const m = resolveMatch(id, seed); return m ? matchName(m) : nodeName(id); }
+function stopsOf(r: ExpeditionRun): readonly (readonly string[])[] { return (CHAPTERS[r.chapter] || CHAPTERS[0]).stops; }
 function stopNames(seed: string): Record<string, string> {
   const names: Record<string, string> = {};
-  STOPS.forEach((st) => st.forEach((id) => { names[id] = nameOf(id, seed); }));
+  CHAPTERS.forEach((c) => c.stops.forEach((st) => st.forEach((id) => { names[id] = nameOf(id, seed); })));
   return names;
 }
 
@@ -142,7 +143,7 @@ function startNewRun(): Promise<void> {
 }
 
 /** 各站的場地色調（時段氣氛）；首領的色調在 field.ts */
-const TINT: Record<string, number> = { rain: 0xB8C8E8, gold: 0xFFE9B0, lowgrav: 0xF3D2EC, elite: 0xFFC79E };
+const TINT: Record<string, number> = { rain: 0xB8C8E8, gold: 0xFFE9B0, lowgrav: 0xF3D2EC, elite: 0xFFC79E, gate: 0xEDE3A8, thunder: 0x9AA0C8, k1: 0xC9B8F0, k2: 0x9C8CD0, k3: 0xF0D8FF };
 
 function fight(): Promise<void> {
   return guard(async () => {
@@ -163,7 +164,7 @@ function fight(): Promise<void> {
       matchId: r2.matchId, p1: lead as CharacterId, p2: node.opp, score: node.score,
       field: {
         title: matchName(node), hearts: r2.hearts, maxHearts: maxHearts(r2.rank), rule: node.rule, diff: rankDiff(node.diff, r2.rank), boss: rankBoss(node.boss, r2.rank),
-        tint: node.id === 'elite' ? TINT.elite : node.rule ? TINT[node.rule] : undefined,
+        tint: TINT[node.id] !== undefined ? TINT[node.id] : node.rule ? TINT[node.rule] : undefined,
         mods: STATS.some((k) => mods[k] !== 1) ? mods : undefined, mechs,
       },
     }, onEnd, onInterrupt);
@@ -426,7 +427,7 @@ function mapStage(body: HTMLElement, r: ExpeditionRun): void {
         fmt(sc.rec.returning ? T.captureBack : sc.rec.ok ? T.captureOk : T.captureFail, { name }), sc.rec.ok ? (sc.rec.joined ? T.captureJoin : T.captureDex) : '');
       return;
     }
-    drawMap(g, W2, H2, t, { compact, nums: n, nodeId: r.nodeId, visited: r.visitedNodeIds, lead: r.partyIds[0], hearts: r.hearts, maxHearts: maxHearts(r.rank), resolve, ended: r.phase === 'cleared' || r.phase === 'failed', names });
+    drawMap(g, W2, H2, t, { compact, nums: n, nodeId: r.nodeId, visited: r.visitedNodeIds, lead: r.partyIds[0], hearts: r.hearts, maxHearts: maxHearts(r.rank), resolve, stops: stopsOf(r), chapter: r.chapter, ended: r.phase === 'cleared' || r.phase === 'failed', names });
   };
 }
 
@@ -437,7 +438,7 @@ function postcardView(body: HTMLElement, r: ExpeditionRun): void {
     .concat([fmt(T.pcLosses, { n: r.losses }) + (r.mode === 'ironman' ? '・' + T.modeIronman : r.chapterRetries ? '・' + fmt(T.retries, { n: r.chapterRetries }) : '')]);
   const paint = (): void => drawPostcard(g, 520, 250, {
     title: T.postcard, runName: runName(r), headline: cleared ? T.pcCleared : T.pcFailed, cleared,
-    party: r.partyIds, visited: r.visitedNodeIds, names: stopNames(r.seed), hearts: r.hearts, maxHearts: maxHearts(r.rank), resolve: (id: string) => resolveMatch(id, r.seed),
+    party: r.partyIds, visited: r.visitedNodeIds, names: stopNames(r.seed), hearts: r.hearts, maxHearts: maxHearts(r.rank), resolve: (id: string) => resolveMatch(id, r.seed), stops: stopsOf(r),
     lines, date: new Date(r.createdAt).toISOString().slice(0, 10), nums: nums(r.seed),
   });
   paint();
@@ -499,7 +500,7 @@ function render(): void {
     return;
   }
   const node = nodeById(r.nodeId), mn = resolveMatch(r.nodeId, r.seed);
-  const stop = FORK_OF[r.nodeId] !== undefined ? FORK_OF[r.nodeId] : STOPS.findIndex((s) => s.indexOf(r.nodeId) >= 0);
+  const STOPS = stopsOf(r), stop = FORK_OF[r.nodeId] !== undefined ? FORK_OF[r.nodeId] : STOPS.findIndex((s) => s.indexOf(r.nodeId) >= 0);
   body.appendChild(el('div', 'pv-exp-dim', chapterLabel(r) + '｜' + fmt(T.stopOf, { n: (stop < 0 ? 1 : stop) + 1, total: STOPS.length })
     + '｜' + (r.mode === 'ironman' ? T.modeIronman : T.modeChapter) + (r.rank ? '｜' + T.rankName[r.rank] : '') + (r.chapterRetries ? '｜' + fmt(T.retries, { n: r.chapterRetries }) : '')));
   body.appendChild(partyView(r, ui.canWrite && r.phase === 'map'));

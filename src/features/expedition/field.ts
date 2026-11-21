@@ -45,7 +45,6 @@ interface RuleState {
 interface BossState { phase: 1 | 2; pending: boolean; cut: number; hit: number; hurt: number; s0: number; s1: number; acc: number; flash: number }
 
 const CUT_FRAMES = 50, CUT_MID = 25;
-const BOSS_TINT = [0x8FA0E8, 0xE08A7A];
 
 const F = {
   spec: null as FieldSpec | null,
@@ -67,7 +66,7 @@ export function begin(c: Controller, spec: FieldSpec): void {
   F.hitEdge = false; F.tick = 0;
   mech.setup(spec.mechs);
   flags.goldBall = false;
-  if (spec.boss) setTint(c, BOSS_TINT[0]); else if (spec.tint !== undefined) setTint(c, spec.tint);
+  if (spec.boss) setTint(c, spec.boss.tint[0]); else if (spec.tint !== undefined) setTint(c, spec.tint);
 }
 
 export function end(c: Controller | null): void {
@@ -110,7 +109,7 @@ export function pre(c: Controller): false | void {
   scoreBoards(c, false);
   if (b.cut > 0) {
     b.cut--;
-    if (b.cut === CUT_MID) { b.phase = 2; b.flash = 6; setTint(c, BOSS_TINT[1]); setBgmSpeed(c, 1.1); }
+    if (b.cut === CUT_MID) { b.phase = 2; b.flash = 6; setTint(c, (F.spec as FieldSpec).boss ? ((F.spec as FieldSpec).boss as BossDef).tint[1] : 0xFFFFFF); setBgmSpeed(c, 1.1); }
     return false;
   }
   if (b.hit > 0) b.hit--;
@@ -342,8 +341,8 @@ export function drawHud(c: Controller): void {
     if (b.cut > 0) {
       const k2 = 1 - b.cut / CUT_FRAMES;
       g.globalAlpha = 0.55 * Math.sin(Math.PI * Math.min(1, k2 * 1.2)); g.fillStyle = '#2A0A00'; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
-      slam(g, T.phase2Title, NET_X, 118, 30, '#FFAB91', CUT_FRAMES - b.cut);
-      label(g, T.phase2Note, NET_X, 150, 13, '#fff');
+      slam(g, T.phase2Title[def.phase2] || '', NET_X, 118, 30, '#FFAB91', CUT_FRAMES - b.cut);
+      label(g, T.phase2Note[def.phase2] || '', NET_X, 150, 13, '#fff');
     }
     if (b.flash > 0) { if (!lite) { g.globalAlpha = 0.5 * b.flash / 6; g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.globalAlpha = 1; } b.flash--; }
     mech.drawMech(g, c, label);

@@ -4,7 +4,7 @@
  */
 import { svc } from '../../core/services';
 import { heart, label, star4 } from '../campaign/draw';
-import { FORK_OF, STOPS, matchNode, nodeById, type MatchNode } from './content';
+import { FORK_OF, STOPS as STOPS1, matchNode, nodeById, type MatchNode } from './content';
 import { rngFor } from './rng';
 
 type G = CanvasRenderingContext2D;
@@ -73,6 +73,10 @@ export interface MapModel {
   lead: string;
   hearts: number;
   maxHearts: number;
+  /** 這一章的站（不給就是第一章） */
+  stops?: readonly (readonly string[])[];
+  /** 第幾章（0 起算）：第二章從黃昏開始，天色越走越暗 */
+  chapter?: number;
   /** 這一輪實際的比賽節點（岔路空位要用種子決定的對手） */
   resolve?: (id: string) => MatchNode | undefined;
   ended: boolean;
@@ -86,7 +90,10 @@ function stopIndex(id: string): number {
   for (let i = 0; i < STOPS.length; i++) if (STOPS[i].indexOf(id) >= 0) return i;
   return 0;
 }
-const X0 = 0.06, DX = (1 - 2 * X0) / (STOPS.length - 1);
+const X0 = 0.06;
+/** 目前畫的是哪一章的站（drawMap／drawPostcard 一開頭設定） */
+let STOPS: readonly (readonly string[])[] = STOPS1, DX = (1 - 2 * X0) / (STOPS1.length - 1);
+function useStops(s: readonly (readonly string[])[] | undefined): void { STOPS = s || STOPS1; DX = (1 - 2 * X0) / (STOPS.length - 1); }
 function pos(id: string, w: number, h: number): [number, number] {
   const i = stopIndex(id), x = w * (X0 + DX * i), st = STOPS[i];
   if (st.length > 1 && FORK_OF[id] === undefined) return [x, h * (st.indexOf(id) === 0 ? 0.33 : 0.78)];
@@ -95,8 +102,10 @@ function pos(id: string, w: number, h: number): [number, number] {
 }
 
 export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): void {
-  const here = stopIndex(m.nodeId), atFork = FORK_OF[m.nodeId] !== undefined;
-  sky(g, w, h, m.ended ? 4 : Math.floor(here * 4 / (STOPS.length - 1)), m.nums, t);
+  useStops(m.stops);
+  const here = stopIndex(m.nodeId), atFork = FORK_OF[m.nodeId] !== undefined, last = STOPS.length - 1;
+  const stageNow = m.chapter ? 2 + Math.floor(here * 2 / last) : Math.floor(here * 4 / last);
+  sky(g, w, h, m.ended ? 4 : stageNow, m.nums, t);
   const seen = (id: string): boolean => m.visited.indexOf(id) >= 0;
   // 岔路已經選了哪一條：沒選的那條變淡
   const picked = (st: readonly string[]): string | undefined => st.filter((id) => seen(id) || m.nodeId === id)[0];
@@ -207,9 +216,11 @@ export interface Postcard {
   title: string; runName: string; headline: string; cleared: boolean;
   party: readonly string[]; visited: readonly string[]; names: Record<string, string>;
   hearts: number; maxHearts: number; lines: readonly string[]; date: string; nums: readonly number[];
+  stops?: readonly (readonly string[])[];
   resolve?: (id: string) => MatchNode | undefined;
 }
 export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
+  useStops(p.stops);
   sky(g, w, h, p.cleared ? 4 : 3, p.nums, 0);
   if (p.cleared) {      // 煙火
     for (let k = 0; k < 4; k++) {

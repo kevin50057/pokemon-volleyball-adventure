@@ -10,7 +10,7 @@ export const RUN_SCHEMA = 2;
 /** 亂數演算法版本：改了 rng.ts 的算法就要加一（同 seed 才會得到同樣的掉落） */
 export const RNG_VERSION = 1;
 /** 內容版本：路線、對手、勝分、卡牌等設定改了就要換 */
-export const CONTENT_VERSION = 'c1-3';
+export const CONTENT_VERSION = 'c1-4';
 
 export type Phase = 'map' | 'active' | 'reward' | 'cleared' | 'failed';
 export type MatchResult = 'win' | 'loss' | 'forfeit';
@@ -33,11 +33,19 @@ export interface ProfileV1 {
   /** 機率收服連續失敗的次數；有失敗過，下一次合格的勝利保底 */
   captureMissesByCharacter: Record<string, number>;
   importedLegacyVersion?: string;
+  /** 開放到第幾級難度（0～RANK_MAX；沒有欄位 = 0） */
+  rankUnlocked?: number;
+  /** 通關印章：夥伴 → 用牠通關過的最高難度 + 1 */
+  stamps?: Record<string, number>;
+  /** 用一命到底通關過的夥伴 */
+  ironmanClears?: string[];
 }
 
 export interface ExpeditionRun {
   schemaVersion: 2;
   mode: RunMode;
+  /** 難度等級（0 = 一般） */
+  rank: number;
   /** 第幾章（0 起算，對應 content.ts 的 CHAPTERS） */
   chapter: number;
   /** 這一輪總共重來過幾次章節 */
@@ -76,8 +84,10 @@ export interface CaptureRecord {
   ok: boolean;
   /** 這次是保底（首次必中的節點，或上次失敗後的保底） */
   sure: boolean;
-  /** 有沒有加入這一輪的隊伍（隊伍滿了就只記入圖鑑） */
+  /** 有沒有加入這一輪的隊伍（隊伍滿了就進後援） */
   joined: boolean;
+  /** 早就收服過了，這次只是來幫忙（不擲收服、不改圖鑑） */
+  returning?: boolean;
 }
 
 /** 一場比賽的結算紀錄。id = runId + matchId，同一場只會有一筆。 */

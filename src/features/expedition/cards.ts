@@ -37,8 +37,8 @@ export function capped(stat: Stat, charBase: number, cardMult: number): number {
 }
 
 /** 三選一：從還沒有的卡裡抽，最多 3 張；不夠就少給，沒有就空的。同一個 rng 得到同樣的結果。 */
-export function offerCards(owned: readonly string[], rng: Rng, n = 3): string[] {
-  const pool = CARDS.map((c) => c.id).filter((id) => owned.indexOf(id) < 0);
+export function offerCards(owned: readonly string[], rng: Rng, n = 3, only?: (id: string) => boolean): string[] {
+  const pool = CARDS.map((c) => c.id).filter((id) => owned.indexOf(id) < 0 && (!only || only(id)));
   for (let i = pool.length - 1; i > 0; i--) { const j = rng.int(i + 1); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
   return pool.slice(0, n);
 }

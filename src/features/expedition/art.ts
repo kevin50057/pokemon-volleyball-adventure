@@ -4,7 +4,7 @@
  */
 import { svc } from '../../core/services';
 import { heart, label, star4 } from '../campaign/draw';
-import { FORK_OF, STOPS, matchNode, nodeById } from './content';
+import { FORK_OF, STOPS, matchNode, nodeById, type MatchNode } from './content';
 import { rngFor } from './rng';
 
 type G = CanvasRenderingContext2D;
@@ -73,6 +73,8 @@ export interface MapModel {
   lead: string;
   hearts: number;
   maxHearts: number;
+  /** 這一輪實際的比賽節點（岔路空位要用種子決定的對手） */
+  resolve?: (id: string) => MatchNode | undefined;
   ended: boolean;
   names: Record<string, string>;
   /** 窄螢幕：只標目前這一站（岔路時標兩個選項）的名字，字放大 */
@@ -115,7 +117,7 @@ export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): voi
   for (let i = 0; i + 1 < STOPS.length; i++) STOPS[i].forEach((a) => STOPS[i + 1].forEach((b) => seg(a, b)));
   // 站
   STOPS.forEach((st, si) => st.forEach((id) => {
-    const [x, y] = pos(id, w, h), n = nodeById(id), mn = matchNode(id);
+    const [x, y] = pos(id, w, h), n = nodeById(id), mn = m.resolve ? m.resolve(id) : matchNode(id);
     const done = seen(id), cur = !m.ended && (m.nodeId === id || (atFork && FORK_OF[m.nodeId] === si));
     const big = !!(mn && mn.boss), r = big ? 15 : 12;
     g.save();
@@ -205,6 +207,7 @@ export interface Postcard {
   title: string; runName: string; headline: string; cleared: boolean;
   party: readonly string[]; visited: readonly string[]; names: Record<string, string>;
   hearts: number; maxHearts: number; lines: readonly string[]; date: string; nums: readonly number[];
+  resolve?: (id: string) => MatchNode | undefined;
 }
 export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
   sky(g, w, h, p.cleared ? 4 : 3, p.nums, 0);
@@ -232,7 +235,7 @@ export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
   let x = 20;
   const y = h - 30, step = (w - 40) / STOPS.length;
   STOPS.forEach((st, i) => {
-    const id = st.filter((s) => p.visited.indexOf(s) >= 0)[0], mn = id ? matchNode(id) : undefined;
+    const id = st.filter((s) => p.visited.indexOf(s) >= 0)[0], mn = id ? (p.resolve ? p.resolve(id) : matchNode(id)) : undefined;
     g.fillStyle = id ? '#1d2140' : 'rgba(0,0,0,0.25)'; g.strokeStyle = id ? '#69F0AE' : 'rgba(255,255,255,0.5)'; g.lineWidth = 2;
     g.beginPath(); g.arc(x + 12, y, 12, 0, Math.PI * 2); g.fill(); g.stroke();
     if (mn) drawFace(g, mn.opp, x + 12, y, 20);

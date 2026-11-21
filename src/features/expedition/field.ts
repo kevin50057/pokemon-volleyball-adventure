@@ -25,6 +25,8 @@ const W = 432, H = 304, NET_X = 216, FLOOR_Y = 270, GROUND_Y = 244, BALL_GROUND 
 export interface FieldSpec {
   title: string;
   hearts: number;
+  /** 這一輪的心上限（難度 3 是 2 顆） */
+  maxHearts?: number;
   rule?: RuleId;
   diff?: Diff;
   mods?: Mods;
@@ -336,7 +338,7 @@ export function drawHud(c: Controller): void {
     const mx = 266 + sh + 150 * (def.hp - def.phase2AtHp) / def.hp;
     g.fillStyle = '#000'; g.fillRect(mx - 1.5, 15, 3, 17);
     label(g, b.phase === 2 ? T.phase2Tag : spec.title, NET_X, 12, 9, b.phase === 2 ? '#FFAB91' : '#fff');
-    for (let h1 = 0; h1 < START_HEARTS; h1++) heart(g, NET_X - 14 + h1 * 14, 27, 5, h1 < spec.hearts);
+    for (let h1 = 0; h1 < (spec.maxHearts || START_HEARTS); h1++) heart(g, NET_X - 14 + h1 * 14, 27, 5, h1 < spec.hearts);
     if (b.cut > 0) {
       const k2 = 1 - b.cut / CUT_FRAMES;
       g.globalAlpha = 0.55 * Math.sin(Math.PI * Math.min(1, k2 * 1.2)); g.fillStyle = '#2A0A00'; g.fillRect(0, 0, W, H); g.globalAlpha = 1;
@@ -347,7 +349,7 @@ export function drawHud(c: Controller): void {
     mech.drawMech(g, c, label);
     return;
   }
-  for (let h2 = 0; h2 < START_HEARTS; h2++) heart(g, NET_X - 14 + h2 * 14, 14, 5.5, h2 < spec.hearts);
+  for (let h2 = 0; h2 < (spec.maxHearts || START_HEARTS); h2++) heart(g, NET_X - 14 + h2 * 14, 14, 5.5, h2 < spec.hearts);
   label(g, spec.title, NET_X, 30, 9, '#fff');
   if (F.rule) drawRule(c, g, F.rule, t, lite);
   mech.drawMech(g, c, label);

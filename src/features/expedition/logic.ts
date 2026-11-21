@@ -13,10 +13,13 @@
  */
 import { offerCards } from './cards';
 import {
-  CAPTURE_CHANCE, CHAPTERS, EVENTS, PARTY_MAX, START_HEARTS, cardById, cardSlots, matchNode, nodeById,
+  CAPTURE_CHANCE, CHAPTERS, EVENTS, PARTY_MAX, RANK_MAX, cardById, cardSlots, matchNode, maxHearts, nodeById,
   type EventChoice, type EventId,
 } from './content';
 import { rngFor } from './rng';
+import { resolveMatch } from './route';
+
+const isMech = (id: string): boolean => !!(cardById(id) || {}).mech;
 import {
   CONTENT_VERSION, RNG_VERSION, RUN_SCHEMA, SCHEMA_VERSION,
   type CaptureRecord, type Checkpoint, type RunMode, type ExpeditionRun, type MatchResult, type Phase, type ProfileV1, type SettlementV1,
@@ -35,14 +38,14 @@ function snapshot(r: Pick<ExpeditionRun, 'partyIds' | 'benchIds' | 'ownedCardIds
 }
 
 /** party：上場的夥伴，加上最多一隻備援 */
-export function newRun(runId: string, seed: string, party: string | readonly string[], now: number, mode: RunMode = 'chapter'): ExpeditionRun {
+export function newRun(runId: string, seed: string, party: string | readonly string[], now: number, mode: RunMode = 'chapter', rank = 0): ExpeditionRun {
   const ids = Array.from(new Set(typeof party === 'string' ? [party] : party)).slice(0, PARTY_MAX);
   if (!ids.length) throw new RuleError('invalid', 'a run needs a partner');
   const base = { partyIds: ids, benchIds: [] as string[], equippedCardIds: [] as string[], ownedCardIds: [] as string[], visitedNodeIds: [] as string[] };
   return {
-    schemaVersion: RUN_SCHEMA, mode, chapter: 0, chapterRetries: 0, checkpoint: snapshot(base),
+    schemaVersion: RUN_SCHEMA, mode, rank: Math.max(0, Math.min(RANK_MAX, rank)), chapter: 0, chapterRetries: 0, checkpoint: snapshot(base),
     runId, seed, rngVersion: RNG_VERSION, contentVersion: CONTENT_VERSION,
-    phase: 'map', nodeId: CHAPTERS[0].first, attemptNo: 0, hearts: START_HEARTS, losses: 0,
+    phase: 'map', nodeId: CHAPTERS[0].first, attemptNo: 0, hearts: maxHearts(rank), losses: 0,
     ...base,
     revision: 1, createdAt: now,
   };
@@ -160,20 +163,32 @@ export function eventOf(run: ExpeditionRun): EventId | null {
 }
 
 /** 奇遇：選一個選項。回 1 心不會超過上限；拿卡的話進三選一（或二選一） */
-export function resolveEvent(run: ExpeditionRun, rev: number, choice: EventChoice): ExpeditionRun {
+export function resolveEvent(run: ExpeditionRun, rev: number, choice: EventChoice, cardId?: string): ExpeditionRun {
   expectRevision(run, rev);
   inMap(run, 'resolve an event');
   const n = nodeById(run.nodeId), ev = eventOf(run);
   if (!n || n.kind !== 'event' || !ev) throw new RuleError('phase', run.nodeId + ' is not an event');
   if (EVENTS[ev].indexOf(choice) < 0) throw new RuleError('invalid', choice + ' is not an option of ' + ev);
+  if (choice === 'gamble' && run.hearts <= 1) throw new RuleError('invalid', 'not enough hearts to gamble');
+  if (choice === 'trade' && (!cardId || run.ownedCardIds.indexOf(cardId) < 0)) throw new RuleError('invalid', 'trade needs one of your cards');
   const next = bump(run);
   next.visitedNodeIds.push(n.id);
   next.nodeId = n.next; next.attemptNo = 0;
-  if (choice === 'heal') next.hearts = Math.min(START_HEARTS, run.hearts + 1);
-  if (choice === 'cards2' || choice === 'cards3') {
-    const offered = offerCards(run.ownedCardIds, rngFor(run.seed, n.id, 'cards', run.rngVersion), choice === 'cards2' ? 2 : 3);
-    if (offered.length) { next.phase = 'reward'; next.pendingReward = { settlementId: settlementIdOf(run.runId, n.id + '#event'), offeredCardIds: offered }; }
+  if (choice === 'heal') next.hearts = Math.min(maxHearts(run.rank), run.hearts + 1);
+  let offered: string[] = [];
+  const rng = rngFor(run.seed, n.id, 'cards', run.rngVersion);
+  if (choice === 'cards2' || choice === 'cards3') offered = offerCards(run.ownedCardIds, rng, choice === 'cards2' ? 2 : 3);
+  if (choice === 'gamble') {
+    next.hearts = run.hearts - 1;
+    offered = offerCards(run.ownedCardIds, rng, 3, isMech);
+    if (!offered.length) offered = offerCards(run.ownedCardIds, rng, 3);
   }
+  if (choice === 'trade') {
+    next.ownedCardIds = next.ownedCardIds.filter((id) => id !== cardId);
+    next.equippedCardIds = next.equippedCardIds.filter((id) => id !== cardId);
+    offered = offerCards(run.ownedCardIds, rng, 3);      // 丟掉的那張不會再出現
+  }
+  if (offered.length) { next.phase = 'reward'; next.pendingReward = { settlementId: settlementIdOf(run.runId, n.id + '#event'), offeredCardIds: offered }; }
   return next;
 }
 
@@ -190,7 +205,7 @@ export interface Settled {
 export function applySettlement(run: ExpeditionRun, profile: ProfileV1, matchId: string, result: MatchResult): Settled {
   if (run.phase !== 'active') throw new RuleError('phase', 'settle in phase ' + run.phase);
   if (run.matchId !== matchId) throw new RuleError('mismatch', 'settle ' + matchId + ' but active is ' + run.matchId);
-  const node = matchNode(run.nodeId);
+  const node = resolveMatch(run.nodeId, run.seed);
   if (!node) throw new RuleError('invalid', run.nodeId + ' is not a match node');
   const next = bump(run);
   delete next.matchId;
@@ -207,12 +222,18 @@ export function applySettlement(run: ExpeditionRun, profile: ProfileV1, matchId:
     next.ownedCardIds = cp.ownedCardIds.slice(); next.equippedCardIds = cp.equippedCardIds.slice();
     next.visitedNodeIds = cp.visitedNodeIds.slice();
     next.nodeId = CHAPTERS[run.chapter].first; next.attemptNo = 0;
-    next.hearts = START_HEARTS;
+    next.hearts = maxHearts(run.rank);
     next.chapterRetries = run.chapterRetries + 1;
     out.chapterRestart = true;
     return out;
   }
   next.visitedNodeIds.push(run.nodeId);
+  // 早就收服過的對手：不擲收服，直接來幫這一輪的忙（加入隊伍或後援）
+  if (node.capture && profile.expeditionUnlocked.indexOf(node.opp) >= 0 && next.partyIds.indexOf(node.opp) < 0 && next.benchIds.indexOf(node.opp) < 0) {
+    let joined = false;
+    if (next.partyIds.length < PARTY_MAX) { next.partyIds.push(node.opp); joined = true; } else next.benchIds.push(node.opp);
+    out.capture = { char: node.opp, ok: true, sure: true, joined, returning: true };
+  }
   // 收服：落在結算，不打斷決勝球
   if (node.capture && profile.expeditionUnlocked.indexOf(node.opp) < 0) {
     const missed = (profile.captureMissesByCharacter[node.opp] || 0) > 0;
@@ -234,15 +255,27 @@ export function applySettlement(run: ExpeditionRun, profile: ProfileV1, matchId:
   if (node.next === null) {
     // 這一章的首領：有下一章就從下一章開頭開始，沒有就整輪通關
     const nc = CHAPTERS[run.chapter + 1];
-    if (!nc) { next.phase = 'cleared'; return out; }
+    if (!nc) {
+      next.phase = 'cleared';
+      // 通關：開放下一級難度、蓋上場夥伴的通關印章
+      const p0 = out.profile, lead = next.partyIds[0];
+      const p: ProfileV1 = { ...p0, stamps: { ...(p0.stamps || {}) }, ironmanClears: (p0.ironmanClears || []).slice() };
+      p.rankUnlocked = Math.max(p0.rankUnlocked || 0, Math.min(RANK_MAX, run.rank + 1));
+      (p.stamps as Record<string, number>)[lead] = Math.max((p0.stamps || {})[lead] || 0, run.rank + 1);
+      if (run.mode === 'ironman' && (p.ironmanClears as string[]).indexOf(lead) < 0) (p.ironmanClears as string[]).push(lead);
+      out.profile = p;
+      return out;
+    }
     next.chapter = run.chapter + 1; next.nodeId = nc.first; next.attemptNo = 0; next.phase = 'map';
-    next.hearts = START_HEARTS;
+    next.hearts = maxHearts(run.rank);
     next.checkpoint = snapshot(next);
     return out;
   }
   next.nodeId = node.next; next.attemptNo = 0; next.phase = 'map';
   if (node.reward) {
-    const offered = offerCards(run.ownedCardIds, rngFor(run.seed, run.nodeId, 'cards', run.rngVersion));
+    const rng = rngFor(run.seed, run.nodeId, 'cards', run.rngVersion);
+    let offered = node.reward === 'rare' ? offerCards(run.ownedCardIds, rng, 3, isMech) : [];
+    if (!offered.length) offered = offerCards(run.ownedCardIds, rng);
     if (offered.length) {
       out.offered = offered;
       next.phase = 'reward';
@@ -296,6 +329,7 @@ export function validateRun(raw: unknown, knownIds: readonly string[]): Check<Ex
   }
   const bad = (d: string): Check<ExpeditionRun> => ({ ok: false, reason: 'corrupt', detail: d });
   if (r.mode !== 'chapter' && r.mode !== 'ironman') return bad('mode');
+  if (!isInt(r.rank, 0, RANK_MAX)) return bad('rank');
   if (!isInt(r.chapter, 0, CHAPTERS.length - 1)) return bad('chapter');
   if (!isInt(r.chapterRetries, 0, 1e6)) return bad('chapterRetries');
   const cp = r.checkpoint as Record<string, unknown> | undefined;
@@ -309,7 +343,7 @@ export function validateRun(raw: unknown, knownIds: readonly string[]): Check<Ex
   if (!PHASES.includes(r.phase as Phase)) return bad('phase');
   if (typeof r.nodeId !== 'string' || !nodeById(r.nodeId)) return bad('nodeId');
   if (!isInt(r.attemptNo, 0, 1e6)) return bad('attemptNo');
-  if (!isInt(r.hearts, 0, START_HEARTS)) return bad('hearts');
+  if (!isInt(r.hearts, 0, maxHearts(r.rank as number))) return bad('hearts');
   if (!isInt(r.losses, 0, 1e6)) return bad('losses');
   if (!isInt(r.revision, 1, Number.MAX_SAFE_INTEGER)) return bad('revision');
   if (!isStrArr(r.partyIds) || r.partyIds.length < 1 || r.partyIds.length > PARTY_MAX || !distinct(r.partyIds) || !r.partyIds.every((id) => knownIds.includes(id))) return bad('partyIds');
@@ -341,5 +375,10 @@ export function validateProfile(raw: unknown, knownIds: readonly string[]): Chec
   if (!isStrArr(p.expeditionUnlocked) || !p.expeditionUnlocked.every((id) => knownIds.includes(id))) return { ok: false, reason: 'corrupt', detail: 'expeditionUnlocked' };
   const m = p.captureMissesByCharacter;
   if (!m || typeof m !== 'object' || !Object.entries(m).every(([k, v]) => knownIds.includes(k) && isInt(v, 0, 1e6))) return { ok: false, reason: 'corrupt', detail: 'captureMissesByCharacter' };
+  // 之後加的欄位都可以沒有（舊的 profile 照樣能讀）
+  if (p.rankUnlocked !== undefined && !isInt(p.rankUnlocked, 0, RANK_MAX)) return { ok: false, reason: 'corrupt', detail: 'rankUnlocked' };
+  const st = p.stamps;
+  if (st !== undefined && (!st || typeof st !== 'object' || !Object.entries(st).every(([k, v]) => knownIds.includes(k) && isInt(v, 1, RANK_MAX + 1)))) return { ok: false, reason: 'corrupt', detail: 'stamps' };
+  if (p.ironmanClears !== undefined && (!isStrArr(p.ironmanClears) || !p.ironmanClears.every((id) => knownIds.includes(id)))) return { ok: false, reason: 'corrupt', detail: 'ironmanClears' };
   return { ok: true, value: raw as ProfileV1 };
 }

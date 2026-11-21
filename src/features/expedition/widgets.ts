@@ -126,4 +126,5 @@ export const CSS = [
   '#pv-exp .pv-exp-dex{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}',
   '#pv-exp .pv-exp-dexcell{background:#2a3060;border-radius:10px;padding:6px;text-align:center;display:flex;flex-direction:column;align-items:center}',
   '#pv-exp .pv-exp-dexcell.have{outline:1px solid #69f0ae}',
+  '#pv-exp .pv-exp-stamp{font-size:12px;color:#ffd54f}',
 ].join('');

@@ -168,7 +168,7 @@ export class ExpeditionDb {
   leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
   setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
   swapIn(rev: number, benchId: string, out: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleSwap(r, rev, benchId, out)); }
-  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[]): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice)); }
+  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[], cardId?: string): Promise<ExpeditionRun> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice, cardId)); }
 
   /** 三選一：選卡（或略過）和結算紀錄上的 picked 在同一個 transaction 裡寫 */
   async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRun> {

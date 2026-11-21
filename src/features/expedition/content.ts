@@ -3,8 +3,8 @@
  * 改了這裡要換 types.ts 的 CONTENT_VERSION。數值都是「驗證起點」，還沒有真人試玩的依據。
  *
  * 第一章「道館巡禮」（PLAN M3：九站、約 35～55 分鐘，還沒有真人計時）：
- *   熱身草原 → 岔路①（雨天池塘／招財巷）→ 奇遇 → 岔路②（搖籃丘／打瞌睡的路口）→ 補給營地
- *   → 強風山口 → 岔路③（地底隧道／鏡子屋）→ 龍之巢前的營火 → 龍之巢
+ *   熱身草原 → 岔路① → 奇遇 → 岔路② → 補給營地 → 強風山口 → 岔路③ → 龍之巢前的營火 → 龍之巢
+ * 岔路的兩個選項是「空位」：對手和場地規則由每一輪的種子抽（route.ts），每輪不一樣。
  */
 import type { CharacterId } from '../../core/types';
 
@@ -48,6 +48,8 @@ export interface BossDef {
 }
 
 export type Capture = 'sure' | 'chance';
+/** 岔路的空位：對手從 pool 抽，規則從 RULE_POOL 抽（同一個岔路的兩個選項不重複） */
+export interface Slot { fork: string; pool: readonly CharacterId[] }
 export interface MatchNode {
   id: string;
   kind: 'match';
@@ -58,8 +60,10 @@ export interface MatchNode {
   /** 不寫就是原本的電腦，一點都不調 */
   diff?: Diff;
   boss?: BossDef;
-  /** 贏了有沒有三選一 */
-  reward: boolean;
+  /** 贏了有沒有三選一；rare：只給機制卡（菁英） */
+  reward: boolean | 'rare';
+  /** 岔路的空位（opp、rule 由種子決定；這裡的 opp 只是佔位） */
+  slot?: Slot;
   capture?: Capture;
   next: string | null;
 }
@@ -69,38 +73,52 @@ export interface SupplyNode { id: string; kind: 'supply'; next: string }
 export interface EventNode { id: string; kind: 'event'; pool: EventId[]; next: string }
 export type NodeDef = MatchNode | ForkNode | SupplyNode | EventNode;
 
-export type EventChoice = 'heal' | 'cards2' | 'cards3' | 'leave';
-export type EventId = 'picnic' | 'trainer' | 'spring';
+/**
+ * heal：回 1 心；cards2／cards3：拿卡（二選一／三選一）；
+ * gamble：付 1 顆心，換一次只有機制卡的三選一（只剩 1 顆心時不能選）；
+ * trade：丟掉一張自己的卡，換一次三選一（沒有卡時不能選）；leave：直接走
+ */
+export type EventChoice = 'heal' | 'cards2' | 'cards3' | 'gamble' | 'trade' | 'leave';
+export type EventId = 'picnic' | 'trainer' | 'spring' | 'stall' | 'dojo';
 /** 每個奇遇的選項（最後一個一定是什麼都不做就走） */
 export const EVENTS: Readonly<Record<EventId, readonly EventChoice[]>> = {
   picnic: ['heal', 'cards2', 'leave'],
   trainer: ['cards3', 'leave'],
   spring: ['heal', 'leave'],
+  stall: ['gamble', 'leave'],
+  dojo: ['trade', 'leave'],
 };
 
 export const CAPTURE_CHANCE = 0.6;
 
+/** 岔路的場地規則池（強風留給菁英；null = 沒有規則） */
+export const RULE_POOL: readonly (RuleId | null)[] = ['rain', 'gold', 'lowgrav', null];
+const P1: readonly CharacterId[] = ['psyduck', 'meowth', 'jigglypuff', 'electrode', 'wobbuffet'];
+const P2: readonly CharacterId[] = ['snorlax', 'jigglypuff', 'mrmime', 'psyduck', 'meowth', 'wobbuffet'];
+const P3: readonly CharacterId[] = ['dugtrio', 'mrmime', 'gengar', 'electrode', 'snorlax', 'wobbuffet'];
+const D1: Diff = { move: 0.70, spike: 0.45, lapse: 0.42 }, D2: Diff = { move: 0.78, spike: 0.55, lapse: 0.35 }, D3: Diff = { move: 0.90, spike: 0.74, lapse: 0.22 };
+function slot(id: string, fork: string, pool: readonly CharacterId[], diff: Diff, next: string): MatchNode {
+  return { id, kind: 'match', opp: pool[0], score: 5, diff, reward: true, capture: 'chance', next, slot: { fork, pool } };
+}
+
 export const NODES: readonly NodeDef[] = [
   { id: 'warmup', kind: 'match', opp: 'magikarp', score: 5, diff: { move: 0.60, spike: 0.35, lapse: 0.50 }, reward: true, capture: 'sure', next: 'fork1' },
-  { id: 'fork1', kind: 'fork', options: ['puddle', 'gold'] },
-  { id: 'puddle', kind: 'match', opp: 'psyduck', score: 5, rule: 'rain', diff: { move: 0.70, spike: 0.45, lapse: 0.42 }, reward: true, capture: 'chance', next: 'event1' },
-  { id: 'gold', kind: 'match', opp: 'meowth', score: 5, rule: 'gold', diff: { move: 0.70, spike: 0.45, lapse: 0.42 }, reward: true, capture: 'chance', next: 'event1' },
-  { id: 'event1', kind: 'event', pool: ['picnic', 'trainer', 'spring'], next: 'fork2' },
-  { id: 'fork2', kind: 'fork', options: ['lullaby', 'nap'] },
-  { id: 'lullaby', kind: 'match', opp: 'jigglypuff', score: 5, rule: 'lowgrav', diff: { move: 0.78, spike: 0.55, lapse: 0.35 }, reward: true, capture: 'chance', next: 'supply' },
-  { id: 'nap', kind: 'match', opp: 'snorlax', score: 5, diff: { move: 0.78, spike: 0.55, lapse: 0.35 }, reward: true, capture: 'chance', next: 'supply' },
+  { id: 'fork1', kind: 'fork', options: ['f1a', 'f1b'] },
+  slot('f1a', 'fork1', P1, D1, 'event1'), slot('f1b', 'fork1', P1, D1, 'event1'),
+  { id: 'event1', kind: 'event', pool: ['picnic', 'trainer', 'spring', 'stall', 'dojo'], next: 'fork2' },
+  { id: 'fork2', kind: 'fork', options: ['f2a', 'f2b'] },
+  slot('f2a', 'fork2', P2, D2, 'supply'), slot('f2b', 'fork2', P2, D2, 'supply'),
   { id: 'supply', kind: 'supply', next: 'elite' },
-  { id: 'elite', kind: 'match', opp: 'farfetchd', score: 7, rule: 'wind', diff: { move: 0.86, spike: 0.66, lapse: 0.27 }, reward: true, capture: 'sure', next: 'fork3' },
-  { id: 'fork3', kind: 'fork', options: ['tunnel', 'mirror'] },
-  { id: 'tunnel', kind: 'match', opp: 'dugtrio', score: 5, diff: { move: 0.90, spike: 0.74, lapse: 0.22 }, reward: true, capture: 'chance', next: 'camp' },
-  { id: 'mirror', kind: 'match', opp: 'mrmime', score: 5, diff: { move: 0.90, spike: 0.74, lapse: 0.22 }, reward: true, capture: 'chance', next: 'camp' },
+  { id: 'elite', kind: 'match', opp: 'farfetchd', score: 7, rule: 'wind', diff: { move: 0.86, spike: 0.66, lapse: 0.27 }, reward: 'rare', capture: 'sure', next: 'fork3' },
+  { id: 'fork3', kind: 'fork', options: ['f3a', 'f3b'] },
+  slot('f3a', 'fork3', P3, D3, 'camp'), slot('f3b', 'fork3', P3, D3, 'camp'),
   { id: 'camp', kind: 'supply', next: 'boss' },
   { id: 'boss', kind: 'match', opp: 'dragonite', score: 7, diff: { move: 0.94, spike: 0.82, lapse: 0.16 }, boss: { playerHp: 5, hp: 7, phase2AtHp: 3, ballSpeed: 1.10 }, reward: false, capture: 'sure', next: null },
 ];
 export const FIRST_NODE = 'warmup';
 /** 地圖上的站數（岔路的兩條算同一站；岔路口本身不算一站） */
 export const STOPS: readonly (readonly string[])[] = [
-  ['warmup'], ['puddle', 'gold'], ['event1'], ['lullaby', 'nap'], ['supply'], ['elite'], ['tunnel', 'mirror'], ['camp'], ['boss'],
+  ['warmup'], ['f1a', 'f1b'], ['event1'], ['f2a', 'f2b'], ['supply'], ['elite'], ['f3a', 'f3b'], ['camp'], ['boss'],
 ];
 /**
  * 章節。失敗的單位是「章」：心用完回到這一章的開頭（一命到底模式除外）。
@@ -116,6 +134,7 @@ export function cardSlots(chapter: number): number { const c = CHAPTERS[chapter]
 export const FORK_OF: Readonly<Record<string, number>> = { fork1: 1, fork2: 3, fork3: 6 };
 
 export function nodeById(id: string): NodeDef | undefined { return NODES.find((n) => n.id === id); }
+/** 不帶種子：岔路空位只回傳樣板（對手是佔位）。要知道這一輪實際的對手，用 route.ts 的 resolveMatch */
 export function matchNode(id: string): MatchNode | undefined { const n = nodeById(id); return n && n.kind === 'match' ? n : undefined; }
 
 // ---------- 卡牌（招式學習器）與羈絆 ----------
@@ -165,8 +184,23 @@ export const CAPS: Readonly<Record<Stat, readonly [number, number]>> = {
 };
 
 // ---------- 圖鑑 ----------
-/** 這一版收得到的角色 → 在哪個節點 */
-export const DEX_NODE: Readonly<Record<string, string>> = {
-  magikarp: 'warmup', psyduck: 'puddle', meowth: 'gold', jigglypuff: 'lullaby', snorlax: 'nap',
-  farfetchd: 'elite', dugtrio: 'tunnel', mrmime: 'mirror', dragonite: 'boss',
-};
+/** 這一版收得到的角色 → 在哪裡（fork = 第一章的岔路，每一輪抽到的不一樣） */
+export const DEX_WHERE: Readonly<Record<string, 'warmup' | 'elite' | 'boss' | 'fork'>> = (() => {
+  const w: Record<string, 'warmup' | 'elite' | 'boss' | 'fork'> = { magikarp: 'warmup', farfetchd: 'elite', dragonite: 'boss' };
+  P1.concat(P2, P3).forEach((id) => { if (!w[id]) w[id] = 'fork'; });
+  return w;
+})();
+
+// ---------- 難度等級 ----------
+/** 0 = 一般。每通關一次（任何模式）就開放下一級。效果是累加的 */
+export const RANK_MAX = 3;
+export function rankDiff(d: Diff | undefined, rank: number): Diff | undefined {
+  if (!d || rank < 1) return d;
+  return { move: Math.min(1, d.move + 0.06), spike: Math.min(1, d.spike + 0.12), lapse: d.lapse * 0.6 };
+}
+export function rankBoss(b: BossDef | undefined, rank: number): BossDef | undefined {
+  if (!b || rank < 2) return b;
+  return { ...b, hp: b.hp + 2, phase2AtHp: b.phase2AtHp + 1 };
+}
+/** 等級 3：每章只有 2 顆心 */
+export function maxHearts(rank: number): number { return rank >= 3 ? START_HEARTS - 1 : START_HEARTS; }

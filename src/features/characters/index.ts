@@ -5,14 +5,14 @@ import type { CharacterId } from '../../core/types';
 import { pick } from '../../core/i18n';
 
 /** 屬性（中文單字，跟舊版一樣直接當鍵用）。 */
-export type PokeType = '電' | '水' | '火' | '鬼' | '普' | '超' | '地' | '妖' | '龍' | '草';
+export type PokeType = '電' | '水' | '火' | '鬼' | '普' | '超' | '地' | '妖' | '龍' | '草' | '惡';
 
 /** 技能名稱（技能系統用來查表）。 */
 export type AbilityName =
   | 'static' | 'flying' | 'acidArmor' | 'fireSmash' | 'emWave' | 'ghostPhase' | 'payday'
   | 'bellyBounce' | 'psychic' | 'fakeBall' | 'counter' | 'transform' | 'barrier' | 'dig'
   | 'leekBoomerang' | 'headache' | 'splash' | 'sing' | 'outrage' | 'psychicShield'
-  | 'smallFlame' | 'vineWhip' | 'shellSlide';
+  | 'smallFlame' | 'vineWhip' | 'shellSlide' | 'synchronize';
 
 export interface CharDef {
   id: CharacterId;
@@ -56,6 +56,8 @@ const SOURCE: CharSource[] = [
   { id: 'charmander', type: '火', ability: 'smallFlame' },
   { id: 'bulbasaur',  type: '草', ability: 'vineWhip' },
   { id: 'squirtle',   type: '水', ability: 'shellSlide' },
+  // 第四隻伊布進化型
+  { id: 'umbreon',    type: '惡', ability: 'synchronize' },
 ];
 
 // 角色名稱、技能名稱、說明（三種語言；鍵一定要齊全，型別會檢查）
@@ -84,6 +86,7 @@ const TEXTS: Record<CharacterId, CharText> = pick<Record<CharacterId, CharText>>
     charmander: { name: '小火龍',   skill: '小火苗＋衝刺', desc: '移動稍快。在網前（靠網 1/3）殺球，球速快 8%；撲救滑得比較遠。' },
     bulbasaur:  { name: '妙蛙種子', skill: '短藤鞭＋飛葉', desc: '移動和跳躍稍慢，但身體左右的擊球範圍比較寬，擦邊球也接得到。不按方向鍵直接殺球是飛葉：過網後會慢下來、早一點落地。' },
     squirtle:   { name: '傑尼龜',   skill: '縮殼滑行＋硬殼', desc: '地上跑得快、跳得比較低，殺球稍弱。撲救滑得很遠，倒地後起身快。硬殼：不會被對手的技能震飛或推開。' },
+    umbreon:    { name: '月伊布',   skill: '同步＋月環', desc: '被對手弄成麻痺、變慢、顛倒或灼傷時，對手也會中一樣的狀態（時間減半）。殺球帶月環：對手用身體接到，頭上會掛月環 1.5 秒，這段時間他的下一顆殺球變弱，而且同步反彈的時間變成全額。' },
   },
   en: {
     pikachu:    { name: 'Pikachu',    skill: 'Static', desc: 'Its spikes carry static: an opponent who receives one has a 55% chance to be paralyzed for 0.8s.' },
@@ -109,6 +112,7 @@ const TEXTS: Record<CharacterId, CharText> = pick<Record<CharacterId, CharText>>
     charmander: { name: 'Charmander', skill: 'Ember + Dash', desc: 'Moves slightly faster. Spikes from near the net (the third of the court closest to it) are 8% faster; dives slide farther.' },
     bulbasaur:  { name: 'Bulbasaur',  skill: 'Short Vine Whip + Razor Leaf', desc: 'Moves and jumps slightly slower, but its hitting range to the left and right is wider, so it can reach glancing balls. Spiking without pressing a direction is Razor Leaf: it slows down after crossing the net and lands a little sooner.' },
     squirtle:   { name: 'Squirtle',   skill: 'Shell Slide + Hard Shell', desc: 'Runs fast on the ground but jumps lower, and its spikes are slightly weaker. Dives slide very far, and it gets up quickly. Hard Shell: opponents\' skills can\'t knock it away or push it.' },
+    umbreon:    { name: 'Umbreon',    skill: 'Synchronize + Moon Ring', desc: 'When the opponent paralyzes, slows, confuses or burns Umbreon, the opponent gets the same status for half as long. Its spikes carry a moon ring: an opponent who receives one with their body wears the ring for 1.5s, making their next spike weaker and making Synchronize reflect the full duration.' },
   },
   ko: {
     pikachu:    { name: '피카츄',   skill: '정전기', desc: '스파이크한 공에 전기가 흘러, 상대가 받으면 55% 확률로 0.8초 동안 마비된다.' },
@@ -134,6 +138,7 @@ const TEXTS: Record<CharacterId, CharText> = pick<Record<CharacterId, CharText>>
     charmander: { name: '파이리',   skill: '불꽃 + 대시', desc: '이동이 조금 빠르다. 네트 앞(네트 쪽 1/3)에서 스파이크하면 공 속도가 8% 빨라지고, 다이빙 때 더 멀리 미끄러진다.' },
     bulbasaur:  { name: '이상해씨', skill: '짧은 덩굴채찍 + 잎날가르기', desc: '이동과 점프가 조금 느리지만, 몸 좌우의 타격 범위가 넓어 스치는 공도 받을 수 있다. 방향키를 누르지 않고 스파이크하면 잎날가르기: 네트를 넘은 뒤 느려져 조금 일찍 떨어진다.' },
     squirtle:   { name: '꼬부기',   skill: '껍질 슬라이드 + 단단한 껍질', desc: '지상에서 빠르게 달리지만 점프가 낮고, 스파이크가 조금 약하다. 다이빙하면 아주 멀리 미끄러지고, 넘어진 뒤 빨리 일어난다. 단단한 껍질: 상대의 기술에 날아가거나 밀려나지 않는다.' },
+    umbreon:    { name: '블래키',   skill: '싱크로 + 달의 고리', desc: '상대 때문에 마비, 감속, 혼란, 화상 상태가 되면 상대도 같은 상태가 된다(시간 절반). 스파이크에 달의 고리가 실린다: 상대가 몸으로 받으면 1.5초 동안 머리 위에 고리가 걸리고, 그동안 상대의 다음 스파이크가 약해지며 싱크로가 원래 시간 그대로 반사된다.' },
   },
 });
 
@@ -149,13 +154,14 @@ const TYPE_COLORS: Record<PokeType, string> = {
   '妖': '#FF9FE0',
   '龍': '#5B6CFF',
   '草': '#5FD35F',
+  '惡': '#9C7BD8',
 };
 
 /** 屬性的顯示名稱（依頁面語言）。`type` 本身是內部鍵，畫面上要顯示屬性時用這個。 */
 export const TYPE_LABELS: Record<PokeType, string> = pick<Record<PokeType, string>>({
-  zh: { '電': '電', '水': '水', '火': '火', '鬼': '鬼', '普': '普', '超': '超', '地': '地', '妖': '妖', '龍': '龍', '草': '草' },
-  en: { '電': 'Electric', '水': 'Water', '火': 'Fire', '鬼': 'Ghost', '普': 'Normal', '超': 'Psychic', '地': 'Ground', '妖': 'Fairy', '龍': 'Dragon', '草': 'Grass' },
-  ko: { '電': '전기', '水': '물', '火': '불꽃', '鬼': '고스트', '普': '노말', '超': '에스퍼', '地': '땅', '妖': '페어리', '龍': '드래곤', '草': '풀' },
+  zh: { '電': '電', '水': '水', '火': '火', '鬼': '鬼', '普': '普', '超': '超', '地': '地', '妖': '妖', '龍': '龍', '草': '草', '惡': '惡' },
+  en: { '電': 'Electric', '水': 'Water', '火': 'Fire', '鬼': 'Ghost', '普': 'Normal', '超': 'Psychic', '地': 'Ground', '妖': 'Fairy', '龍': 'Dragon', '草': 'Grass', '惡': 'Dark' },
+  ko: { '電': '전기', '水': '물', '火': '불꽃', '鬼': '고스트', '普': '노말', '超': '에스퍼', '地': '땅', '妖': '페어리', '龍': '드래곤', '草': '풀', '惡': '악' },
 });
 
 const LIST: CharDef[] = SOURCE.map((c) => ({ ...c, ...TEXTS[c.id], color: TYPE_COLORS[c.type] || '#FFFFFF' }));

@@ -14,12 +14,12 @@ export type CharacterId =
   | 'pikachu' | 'bird' | 'vaporeon' | 'flareon' | 'jolteon' | 'gengar' | 'meowth'
   | 'snorlax' | 'mewtwo' | 'electrode' | 'wobbuffet' | 'ditto' | 'mrmime' | 'dugtrio'
   | 'farfetchd' | 'psyduck' | 'magikarp' | 'jigglypuff' | 'dragonite' | 'mew'
-  | 'charmander' | 'bulbasaur' | 'squirtle';
+  | 'charmander' | 'bulbasaur' | 'squirtle' | 'umbreon';
 
 export const CHARACTER_IDS: readonly CharacterId[] = [
   'pikachu', 'bird', 'vaporeon', 'flareon', 'jolteon', 'gengar', 'meowth', 'snorlax',
   'mewtwo', 'electrode', 'wobbuffet', 'ditto', 'mrmime', 'dugtrio', 'farfetchd', 'psyduck',
-  'magikarp', 'jigglypuff', 'dragonite', 'mew', 'charmander', 'bulbasaur', 'squirtle',
+  'magikarp', 'jigglypuff', 'dragonite', 'mew', 'charmander', 'bulbasaur', 'squirtle', 'umbreon',
 ];
 
 /**

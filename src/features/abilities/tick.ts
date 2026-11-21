@@ -7,6 +7,7 @@ import { draw } from './overlay';
 import { leekReach, processAbility, processBurn } from './skills';
 import { shellMark, shellRestore, starterMotion } from './starters';
 import { pk, resetAll, rt } from './state';
+import { processMoonMark } from './umbreon';
 
 export function tick(ctrl: Controller): void {
   const p1 = ctrl.physics.player1, p2 = ctrl.physics.player2, ball = ctrl.physics.ball;
@@ -40,6 +41,8 @@ export function tick(ctrl: Controller): void {
     starterMotion(p2);
     processBurn(p1, ball, 'p1');
     processBurn(p2, ball, 'p2');
+    processMoonMark(p1, ball, rt.state.p1);
+    processMoonMark(p2, ball, rt.state.p2);
     processDebuffs(p1, ctrl.keyboardArray[0], 'p1');
     processDebuffs(p2, ctrl.keyboardArray[1], 'p2');
     rt.ballMem.prevPower = !!ball.isPowerHit;

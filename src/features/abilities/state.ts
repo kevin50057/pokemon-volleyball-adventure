@@ -30,6 +30,8 @@ export interface AbilitySide extends SideState {
   headacheCharge: number; tripCounter: number; gyaradosTimer: number;
   mewCD: number; tpCD: number; auraTimer: number; boomerangTimer: number;
   quake: number; ownSide: number;
+  /** 月伊布：被套上月環的剩餘幀數、月環球飛行中、同步用的上一幀狀態 */
+  moonMark: number; moonBall: number;
   coins?: MeowthCoin[];
   // 只有技能系統自己用的欄位（舊版直接掛在同一個物件上）
   /** 雷伊布／夢幻：自己數的幀數、上一幀方向、連點判斷 */

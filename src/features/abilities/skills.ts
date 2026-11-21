@@ -8,6 +8,7 @@ import { pushBurst, pushFlash, tier } from './fx';
 import { getTrail, newSide, pk, receivedSpike, rt, setTrail } from './state';
 import type { AbilitySide, SideKey } from './state';
 import { STARTER_ABILITIES } from './starters';
+import { UMBREON_ABILITIES } from './umbreon';
 import { TUNING } from './tuning';
 import {
   FLOOR_Y, GROUND_BALL_Y, GROUND_Y, NET_X, P1_MAX_X, P1_MIN_X, P2_MAX_X, P2_MIN_X,
@@ -71,6 +72,7 @@ export function processAbility(player: Player, opp: Player, ball: Ball, input: U
 
 const ABILITIES: Record<string, AbilityFn | null> = {
   ...STARTER_ABILITIES,
+  ...UMBREON_ABILITIES,
   // 閃電鳥「雷擊俯衝」：同一次跳躍拍翅 3 次以上後殺球，球速加快、往下砸，而且帶電（對手接到會麻痺）
   flying: function (player, opp, ball, input, s, oppS) {
     const flaps = 6 - (player.flapsLeft || 0);

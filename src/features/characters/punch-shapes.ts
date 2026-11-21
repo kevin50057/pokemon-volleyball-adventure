@@ -128,6 +128,14 @@ const SHAPES: Record<string, ShapeFn> = {
       g.quadraticCurveTo(C + ox, C - 3, C - 10 + ox, C - 13); g.fill();
     }
   },
+  // 惡：一彎新月，旁邊兩個小光環
+  '惡': function (g, main, light) {
+    g.fillStyle = main; circle(g, C, C, 12);
+    g.save(); g.globalCompositeOperation = 'destination-out'; circle(g, C + 6, C - 4, 10); g.restore();
+    g.strokeStyle = light; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(C + 9, C + 8, 4, 2, 0, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.ellipse(C + 12, C - 10, 3, 1.5, 0, 0, Math.PI * 2); g.stroke();
+  },
   // 草：往外飛的葉片
   '草': function (g, main, light) {
     for (let i = 0; i < 6; i++) {

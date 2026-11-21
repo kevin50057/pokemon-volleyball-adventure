@@ -403,6 +403,7 @@ export class GameView implements IGameView {
       dragonite: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.DRAGONITE_SHEET), TEXTURES.DRAGONITE),
       mew: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.MEW_SHEET), TEXTURES.MEW),
       charmander: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.CHARMANDER_SHEET), TEXTURES.CHARMANDER),
+      umbreon: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.UMBREON_SHEET), TEXTURES.UMBREON),
       bulbasaur: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.BULBASAUR_SHEET), TEXTURES.BULBASAUR),
       squirtle: makePlayerTextureArray(texturesOf(resources, ASSETS_PATH.SQUIRTLE_SHEET), TEXTURES.SQUIRTLE),
     };

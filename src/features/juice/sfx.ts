@@ -118,6 +118,7 @@ export function sfxSpike(ctrl: Controller | null, type: string, big: boolean, le
     case '地': noise(t, 0.3, 0.55 * a, 'lowpass', 900, 120, 1); osc('triangle', 260, 90, t, 0.2, 0.2 * a); break;
     case '妖': osc('triangle', 1600, 1650, t, 0.18, 0.16 * a); osc('triangle', 2400, 2450, t + 0.04, 0.16, 0.12 * a); break;
     case '龍': osc('sawtooth', 240, 90, t, 0.26, 0.25 * a); osc('sawtooth', 120, 55, t, 0.24, 0.2 * a); break;
+    case '惡': osc('sine', 330, 160, t, 0.26, 0.22 * a); osc('triangle', 990, 660, t + 0.05, 0.16, 0.1 * a); break;
     case '草': noise(t, 0.16, 0.4 * a, 'bandpass', 3200, 1400, 2); osc('triangle', 820, 520, t, 0.1, 0.12 * a); break;
     default: noise(t, 0.12, 0.35 * a, 'lowpass', 1800, 300, 0.8);
   }

@@ -70,11 +70,14 @@ export function checkSpecial(): string[] {
   Object.keys(save.medals).forEach(function (id) { const t = medalTier(id); if (t >= 2) silver++; if (t >= 3) gold++; });
   if (medalCount() >= 3 && unlock('ditto')) got.push('ditto');
   if ((gold >= 1 || silver >= 3) && unlock('mew')) got.push('mew');
+  // 月伊布：用水伊布、火伊布或雷伊布任一隻拿到獎章
+  if (['vaporeon', 'flareon', 'jolteon'].some(function (id) { return !!save.medals[id]; }) && unlock('umbreon')) got.push('umbreon');
   return got;
 }
 export function howToGet(id: string): string {
   if (id === 'ditto') return T.howDitto;
   if (id === 'mew') return T.howMew;
+  if (id === 'umbreon') return T.howUmbreon;
   if (id === 'mewtwo') return T.howMewtwo;
   for (let i = 0; i < CFG.zones.length; i++) {
     const z = CFG.zones[i], all = (z.fixed || []).concat(z.pool || [], z.last ? [z.last] : []);

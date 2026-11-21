@@ -10,8 +10,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLASSIC = 'https://kevin50057.github.io/pokemon-volleyball/';
 
 const NAMES = {
-  en: { pikachu: 'Pikachu', bird: 'Zapdos', vaporeon: 'Vaporeon', flareon: 'Flareon', jolteon: 'Jolteon', gengar: 'Gengar', meowth: 'Meowth', snorlax: 'Snorlax', mewtwo: 'Mewtwo', electrode: 'Electrode', wobbuffet: 'Wobbuffet', ditto: 'Ditto', mrmime: 'Mr. Mime', dugtrio: 'Dugtrio', farfetchd: "Farfetch'd", psyduck: 'Psyduck', magikarp: 'Magikarp', jigglypuff: 'Jigglypuff', dragonite: 'Dragonite', mew: 'Mew', charmander: 'Charmander', bulbasaur: 'Bulbasaur', squirtle: 'Squirtle' },
-  ko: { pikachu: '피카츄', bird: '썬더', vaporeon: '샤미드', flareon: '부스터', jolteon: '쥬피썬더', gengar: '팬텀', meowth: '나옹', snorlax: '잠만보', mewtwo: '뮤츠', electrode: '붐볼', wobbuffet: '마자용', ditto: '메타몽', mrmime: '마임맨', dugtrio: '닥트리오', farfetchd: '파오리', psyduck: '고라파덕', magikarp: '잉어킹', jigglypuff: '푸린', dragonite: '망나뇽', mew: '뮤', charmander: '파이리', bulbasaur: '이상해씨', squirtle: '꼬부기' },
+  en: { pikachu: 'Pikachu', bird: 'Zapdos', vaporeon: 'Vaporeon', flareon: 'Flareon', jolteon: 'Jolteon', gengar: 'Gengar', meowth: 'Meowth', snorlax: 'Snorlax', mewtwo: 'Mewtwo', electrode: 'Electrode', wobbuffet: 'Wobbuffet', ditto: 'Ditto', mrmime: 'Mr. Mime', dugtrio: 'Dugtrio', farfetchd: "Farfetch'd", psyduck: 'Psyduck', magikarp: 'Magikarp', jigglypuff: 'Jigglypuff', dragonite: 'Dragonite', mew: 'Mew', charmander: 'Charmander', bulbasaur: 'Bulbasaur', squirtle: 'Squirtle', umbreon: 'Umbreon' },
+  ko: { pikachu: '피카츄', bird: '썬더', vaporeon: '샤미드', flareon: '부스터', jolteon: '쥬피썬더', gengar: '팬텀', meowth: '나옹', snorlax: '잠만보', mewtwo: '뮤츠', electrode: '붐볼', wobbuffet: '마자용', ditto: '메타몽', mrmime: '마임맨', dugtrio: '닥트리오', farfetchd: '파오리', psyduck: '고라파덕', magikarp: '잉어킹', jigglypuff: '푸린', dragonite: '망나뇽', mew: '뮤', charmander: '파이리', bulbasaur: '이상해씨', squirtle: '꼬부기', umbreon: '블래키' },
 };
 const SIDE = { en: { 1: '1P (left): ', 2: '2P (right): ' }, ko: { 1: '1P (왼쪽): ', 2: '2P (오른쪽): ' } };
 

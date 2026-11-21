@@ -72,6 +72,7 @@ const zh = {
   // ---------- 取得方式（save.ts） ----------
   howDitto: '累積 3 面獎章',
   howMew: '拿到一面金獎章（一場都沒輸地通關），或 3 面銀獎章',
+  howUmbreon: '用水伊布、火伊布或雷伊布通關，拿到獎章',
   howMewtwo: '在最終戰打倒牠',
   howZone: '在「{zone}」打倒牠',
 
@@ -236,6 +237,7 @@ const en: Texts = {
 
   howDitto: 'Earn 3 medals',
   howMew: 'Earn a gold medal (clear without losing a match) or 3 silver medals',
+  howUmbreon: 'Clear with Vaporeon, Flareon or Jolteon to earn a medal',
   howMewtwo: 'Defeat it in the Final Battle',
   howZone: 'Defeat it in {zone}',
 
@@ -392,6 +394,7 @@ const ko: Texts = {
 
   howDitto: '메달 3개 모으기',
   howMew: '금메달 1개 (한 판도 지지 않고 클리어) 또는 은메달 3개 얻기',
+  howUmbreon: '샤미드, 부스터, 쥬피썬더 중 하나로 클리어해서 메달 얻기',
   howMewtwo: '최종전에서 쓰러뜨리기',
   howZone: '{zone}에서 쓰러뜨리기',
 

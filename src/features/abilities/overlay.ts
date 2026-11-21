@@ -181,6 +181,12 @@ function drawStatus(g: G, s: AbilitySide, player: Player, tick: number): void {
       starIcon(g, x + Math.cos(b) * 13, top + Math.sin(b) * 4, 4, '#FFEB3B');
     }
   }
+  if (s.moonMark > 0 && !(s.moonMark < 10 && s.moonMark % 4 < 2)) {   // 月伊布的月環：頭上一圈黃色的環
+    g.globalAlpha = 0.9; g.strokeStyle = '#000'; g.lineWidth = 4;
+    g.beginPath(); g.ellipse(x, top - 3, 11, 4, 0, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = '#FFD54F'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(x, top - 3, 11, 4, 0, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+  }
   if (s.slowTimer > 0) {             // 踩到金幣：頭上一枚轉動的金幣
     const sw = Math.abs(Math.cos(tick / 3)) * 4 + 1;
     g.fillStyle = '#000'; g.beginPath(); g.ellipse(x, top, sw + 1, 5, 0, 0, Math.PI * 2); g.fill();

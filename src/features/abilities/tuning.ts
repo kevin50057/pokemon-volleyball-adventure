@@ -3,6 +3,8 @@
 // 每隻對一般對手的勝率大約落在 40%～60%。改數值後建議重跑模擬確認。
 // 這個物件會原封不動地放進 svc.abilities.tuning，其他功能（例如闖關的場地規則）可以暫時改它。
 export const TUNING = {
+  // 月伊布：同步反彈的比例、月環掛幾幀（25 幀 ≈ 1 秒）、被月環套住時下一顆殺球剩幾成
+  umbreonSyncShare: 0.5, umbreonMarkFrames: 38, umbreonMarkSpike: 0.9,
   // 喵喵
   meowthDoubleChance: 0.15,   // 得分算 2 分的機率
   meowthMaxCoins: 2,          // 場上最多幾枚金幣

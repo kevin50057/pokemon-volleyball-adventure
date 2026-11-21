@@ -4,7 +4,9 @@
 import { fmt } from '../../core/i18n';
 import { CHARS } from '../characters';
 import { face } from './art';
-import { STATS, activeBonds, cardMods, type Mods } from './cards';
+import { diveMult, jumpMult, starterMove } from '../abilities/starters';
+import { STATS, activeBonds, capped, cardMods, type Mods } from './cards';
+import type { Stat } from './content';
 import { BONDS, cardById } from './content';
 import { T } from './texts';
 
@@ -53,10 +55,18 @@ export function cardView(id: string, onClick: (() => unknown) | null, on: boolea
   return b;
 }
 
-/** 目前的加成：卡 × 羈絆（各項倍率和發動中的羈絆） */
+/** 角色本身的倍率（御三家有，其他角色都是 1） */
+function charBase(lead: string, k: Stat): number {
+  return k === 'move' ? starterMove(lead) : k === 'dive' ? diveMult(lead) : k === 'jump' ? jumpMult(lead) : 1;
+}
+
+/** 目前的加成：卡 × 羈絆，乘上角色本身之後做上限，顯示實際生效的倍率（碰到上限會標出來） */
 export function bonusView(lead: string, equipped: readonly string[]): HTMLElement {
   const box = el('div', 'pv-exp-bonus'), m: Mods = cardMods(lead, equipped);
-  const parts = STATS.filter((k) => m[k] !== 1).map((k) => T.statName[k] + ' ' + mult(m[k]));
+  const parts = STATS.filter((k) => m[k] !== 1).map((k) => {
+    const b = charBase(lead, k), eff = capped(k, b, m[k]) / b;
+    return T.statName[k] + ' ' + mult(eff) + (Math.abs(eff - m[k]) > 0.005 ? T.capNote : '');
+  });
   box.appendChild(el('div', '', T.statsNow + '：' + (parts.length ? parts.join('、') : T.none)));
   activeBonds(lead, equipped).forEach((tag) => box.appendChild(el('div', 'pv-exp-tagline ' + tag, '★ ' + fmt(T.bondOn, { tag: T.tagName[tag], stat: T.statName[BONDS[tag].stat], v: BONDS[tag].mult.toFixed(2) }))));
   return box;
@@ -88,6 +98,11 @@ export const CSS = [
   '#pv-exp .pv-exp-party{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}',
   '#pv-exp .pv-exp-mate{display:flex;align-items:center;gap:6px;background:#2a3060;border-radius:10px;padding:4px 8px}',
   '#pv-exp .pv-exp-mate.lead{outline:2px solid #ffd54f}',
+  '#pv-exp .pv-exp-bench{display:flex;flex-wrap:wrap;align-items:center;gap:2px}',
+  '#pv-exp .pv-exp-btn:disabled{opacity:.45;cursor:default}',
+  '#pv-exp .pv-exp-tag.fire{background:#ff8a65} #pv-exp .pv-exp-tag.water{background:#4fc3f7}',
+  '#pv-exp .pv-exp-tagline.fire{color:#ff8a65} #pv-exp .pv-exp-tagline.water{color:#4fc3f7}',
+  '#pv-exp .pv-exp-rule.lowgrav{color:#ff8ad8}',
   '#pv-exp .pv-exp-node{background:#2a3060;border-radius:10px;padding:8px 10px;margin:6px 0;flex:1 1 220px}',
   '#pv-exp .pv-exp-node-head{display:flex;align-items:center;gap:8px}',
   '#pv-exp .pv-exp-fork{display:flex;flex-wrap:wrap;gap:8px}',

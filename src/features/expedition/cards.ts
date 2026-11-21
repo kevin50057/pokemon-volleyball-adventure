@@ -8,7 +8,7 @@ export type Mods = Record<Stat, number>;
 export const STATS: readonly Stat[] = ['move', 'jump', 'spike', 'dive'];
 
 export function activeBonds(lead: string, equipped: readonly string[]): Tag[] {
-  const n: Record<Tag, number> = { thunder: 0, wind: 0 };
+  const n: Record<Tag, number> = { thunder: 0, wind: 0, fire: 0, water: 0 };
   const t = CHAR_TAG[lead];
   if (t) n[t]++;
   uniqueSorted(equipped).forEach((id) => { const c = cardById(id); if (c && c.tag) n[c.tag]++; });

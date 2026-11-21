@@ -4,7 +4,7 @@
  */
 import { svc } from '../../core/services';
 import { heart, label, star4 } from '../campaign/draw';
-import { STOPS, matchNode, nodeById } from './content';
+import { FORK_OF, STOPS, matchNode, nodeById } from './content';
 import { rngFor } from './rng';
 
 type G = CanvasRenderingContext2D;
@@ -75,73 +75,80 @@ export interface MapModel {
   maxHearts: number;
   ended: boolean;
   names: Record<string, string>;
+  /** 窄螢幕：只標目前這一站（岔路時標兩個選項）的名字，字放大 */
+  compact?: boolean;
 }
 
 function stopIndex(id: string): number {
-  if (id === 'fork') return 1;
+  if (FORK_OF[id] !== undefined) return FORK_OF[id];
   for (let i = 0; i < STOPS.length; i++) if (STOPS[i].indexOf(id) >= 0) return i;
   return 0;
 }
+const X0 = 0.06, DX = (1 - 2 * X0) / (STOPS.length - 1);
 function pos(id: string, w: number, h: number): [number, number] {
-  const i = stopIndex(id), x = w * (0.11 + 0.195 * i);
-  const st = STOPS[i];
-  if (st.length > 1 && id !== 'fork') return [x, h * (st.indexOf(id) === 0 ? 0.34 : 0.8)];
-  return [x, h * 0.58];
+  const i = stopIndex(id), x = w * (X0 + DX * i), st = STOPS[i];
+  if (st.length > 1 && FORK_OF[id] === undefined) return [x, h * (st.indexOf(id) === 0 ? 0.33 : 0.78)];
+  // 一般站：微微上下起伏，比較像山路
+  return [x, h * (0.56 + (i % 2 ? -0.04 : 0.04))];
 }
 
 export function drawMap(g: G, w: number, h: number, t: number, m: MapModel): void {
-  const here = stopIndex(m.nodeId), atFork = m.nodeId === 'fork';
-  sky(g, w, h, m.ended ? 4 : here, m.nums, t);
+  const here = stopIndex(m.nodeId), atFork = FORK_OF[m.nodeId] !== undefined;
+  sky(g, w, h, m.ended ? 4 : Math.floor(here * 4 / (STOPS.length - 1)), m.nums, t);
   const seen = (id: string): boolean => m.visited.indexOf(id) >= 0;
-  const branch = STOPS[1].filter((id) => seen(id) || m.nodeId === id)[0];       // 已經選了哪一條
-  const dim = (id: string): boolean => STOPS[1].indexOf(id) >= 0 && !!branch && branch !== id;
+  // 岔路已經選了哪一條：沒選的那條變淡
+  const picked = (st: readonly string[]): string | undefined => st.filter((id) => seen(id) || m.nodeId === id)[0];
+  const dim = (id: string): boolean => { const st = STOPS[stopIndex(id)]; const p = st.length > 1 ? picked(st) : undefined; return !!p && p !== id; };
   // 路
   const seg = (a: string, b: string): void => {
     const [ax, ay] = pos(a, w, h), [bx, by] = pos(b, w, h), done = seen(a) && (seen(b) || m.nodeId === b);
     g.save();
     g.globalAlpha = dim(a) || dim(b) ? 0.18 : 1;
     g.lineCap = 'round';
-    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 6; g.setLineDash([]);
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 5; g.setLineDash([]);
     g.beginPath(); g.moveTo(ax, ay + 2); g.quadraticCurveTo((ax + bx) / 2, Math.min(ay, by) - 6 + 2, bx, by + 2); g.stroke();
-    g.strokeStyle = done ? '#FFE9A8' : 'rgba(255,255,255,0.75)'; g.lineWidth = 3.5;
-    if (!done) { g.setLineDash([2, 7]); g.lineDashOffset = -t / 6; }
+    g.strokeStyle = done ? '#FFE9A8' : 'rgba(255,255,255,0.75)'; g.lineWidth = 3;
+    if (!done) { g.setLineDash([2, 6]); g.lineDashOffset = -t / 6; }
     g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo((ax + bx) / 2, Math.min(ay, by) - 6, bx, by); g.stroke();
     g.restore();
   };
-  seg('warmup', 'puddle'); seg('warmup', 'gold'); seg('puddle', 'supply'); seg('gold', 'supply'); seg('supply', 'elite'); seg('elite', 'boss');
+  for (let i = 0; i + 1 < STOPS.length; i++) STOPS[i].forEach((a) => STOPS[i + 1].forEach((b) => seg(a, b)));
   // 站
-  STOPS.forEach((st) => st.forEach((id) => {
+  STOPS.forEach((st, si) => st.forEach((id) => {
     const [x, y] = pos(id, w, h), n = nodeById(id), mn = matchNode(id);
-    const done = seen(id), cur = !m.ended && (m.nodeId === id || (atFork && STOPS[1].indexOf(id) >= 0));
-    const big = !!(mn && mn.boss), r = big ? 19 : 15;
+    const done = seen(id), cur = !m.ended && (m.nodeId === id || (atFork && FORK_OF[m.nodeId] === si));
+    const big = !!(mn && mn.boss), r = big ? 15 : 12;
     g.save();
     g.globalAlpha = dim(id) ? 0.3 : 1;
-    if (cur) { g.globalAlpha *= 0.5 + 0.3 * Math.sin(t / 9); g.fillStyle = '#FFD54F'; g.beginPath(); g.arc(x, y, r + 6 + Math.sin(t / 9) * 2, 0, Math.PI * 2); g.fill(); g.globalAlpha = dim(id) ? 0.3 : 1; }
+    if (cur) { g.globalAlpha *= 0.5 + 0.3 * Math.sin(t / 9); g.fillStyle = '#FFD54F'; g.beginPath(); g.arc(x, y, r + 5 + Math.sin(t / 9) * 2, 0, Math.PI * 2); g.fill(); g.globalAlpha = dim(id) ? 0.3 : 1; }
     if (big) {         // 首領：轉動的尖刺外框
       g.fillStyle = '#B23A2E'; g.beginPath();
-      for (let k = 0; k < 20; k++) { const a = k * Math.PI / 10 + t / 90, rr = k % 2 ? r + 1 : r + 7; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+      for (let k = 0; k < 20; k++) { const a = k * Math.PI / 10 + t / 90, rr = k % 2 ? r + 1 : r + 6; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
       g.closePath(); g.fill();
     }
-    g.fillStyle = '#1d2140'; g.strokeStyle = done ? '#69F0AE' : cur ? '#FFD54F' : '#fff'; g.lineWidth = 2.5;
+    g.fillStyle = '#1d2140'; g.strokeStyle = done ? '#69F0AE' : cur ? '#FFD54F' : '#fff'; g.lineWidth = 2.2;
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.stroke();
     if (mn) drawFace(g, mn.opp, x, y, r * 1.7);
     else if (n && n.kind === 'supply') {   // 帳篷和營火
-      g.fillStyle = '#FF8A65'; g.beginPath(); g.moveTo(x - 9, y + 6); g.lineTo(x - 1, y - 8); g.lineTo(x + 7, y + 6); g.closePath(); g.fill();
-      g.fillStyle = '#4E2A1E'; g.beginPath(); g.moveTo(x - 3, y + 6); g.lineTo(x - 1, y - 1); g.lineTo(x + 1, y + 6); g.closePath(); g.fill();
-      g.fillStyle = t % 12 < 6 ? '#FFD54F' : '#FF9800'; g.beginPath(); g.arc(x + 9, y + 4 - (t % 12 < 6 ? 1 : 0), 2.4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#FF8A65'; g.beginPath(); g.moveTo(x - 7, y + 5); g.lineTo(x - 1, y - 7); g.lineTo(x + 5, y + 5); g.closePath(); g.fill();
+      g.fillStyle = '#4E2A1E'; g.beginPath(); g.moveTo(x - 3, y + 5); g.lineTo(x - 1, y - 1); g.lineTo(x + 1, y + 5); g.closePath(); g.fill();
+      g.fillStyle = t % 12 < 6 ? '#FFD54F' : '#FF9800'; g.beginPath(); g.arc(x + 7, y + 3 - (t % 12 < 6 ? 1 : 0), 2, 0, Math.PI * 2); g.fill();
+    } else if (n && n.kind === 'event') {  // 奇遇：問號
+      label(g, '?', x, y + 0.5, 14, '#FFE082');
     }
-    if (done) { g.fillStyle = '#69F0AE'; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.arc(x + r - 3, y - r + 3, 5.5, 0, Math.PI * 2); g.fill(); g.stroke(); label(g, '✓', x + r - 3, y - r + 3.5, 8, '#0B3D1E'); }
-    label(g, m.names[id] || id, x, y + r + 9, 8.5, cur ? '#FFE082' : '#fff', 'center', 96);
+    if (done) { g.fillStyle = '#69F0AE'; g.strokeStyle = '#000'; g.lineWidth = 1.3; g.beginPath(); g.arc(x + r - 2, y - r + 2, 4.5, 0, Math.PI * 2); g.fill(); g.stroke(); label(g, '✓', x + r - 2, y - r + 2.5, 6.5, '#0B3D1E'); }
+    if (!m.compact) label(g, m.names[id] || id, x, y + r + 8, 7.5, cur ? '#FFE082' : '#fff', 'center', w * DX * 0.98);
+    else if (cur) label(g, m.names[id] || id, Math.max(40, Math.min(w - 40, x)), y + r + 10, 11, '#FFE082', 'center', 90);
     g.restore();
   }));
   // 夥伴站在目前的位置（岔路：站在路口）
   if (!m.ended) {
     let [px, py] = pos(m.nodeId, w, h);
-    if (atFork) { const a = pos('warmup', w, h); px = (a[0] + px) / 2 + 6; py = a[1]; }
-    else { px -= 22; py -= 12; }
+    if (atFork) { const prev = STOPS[stopIndex(m.nodeId) - 1][0], a = pos(prev, w, h); px = a[0] + w * DX * 0.5; py = a[1] - 4; }
+    else { px -= 16; py -= 12; }
     const hop = Math.abs(Math.sin(t / 10)) * 4;
-    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(px, py + 14, 9 - hop * 0.6, 2.5, 0, 0, Math.PI * 2); g.fill();
-    drawFace(g, m.lead, px, py - hop, 28);
+    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(px, py + 12, 8 - hop * 0.6, 2.2, 0, 0, Math.PI * 2); g.fill();
+    drawFace(g, m.lead, px, py - hop, 24);
   }
   for (let i = 0; i < m.maxHearts; i++) heart(g, 14 + i * 15, 13, 5.5, i < m.hearts);
 }
@@ -222,16 +229,17 @@ export function drawPostcard(g: G, w: number, h: number, p: Postcard): void {
   p.party.forEach((id, i) => drawFace(g, id, 52 + i * 62, 96, i === 0 ? 68 : 52));
   for (let i = 0; i < p.maxHearts; i++) heart(g, 30 + i * 17, 144, 6.5, i < p.hearts);
   // 走過的路
-  let x = 22;
-  const y = h - 34;
+  let x = 20;
+  const y = h - 30, step = (w - 40) / STOPS.length;
   STOPS.forEach((st, i) => {
     const id = st.filter((s) => p.visited.indexOf(s) >= 0)[0], mn = id ? matchNode(id) : undefined;
     g.fillStyle = id ? '#1d2140' : 'rgba(0,0,0,0.25)'; g.strokeStyle = id ? '#69F0AE' : 'rgba(255,255,255,0.5)'; g.lineWidth = 2;
     g.beginPath(); g.arc(x + 12, y, 12, 0, Math.PI * 2); g.fill(); g.stroke();
     if (mn) drawFace(g, mn.opp, x + 12, y, 20);
-    else if (id) { g.fillStyle = '#FF8A65'; g.beginPath(); g.moveTo(x + 5, y + 5); g.lineTo(x + 12, y - 7); g.lineTo(x + 19, y + 5); g.closePath(); g.fill(); }
-    if (i < STOPS.length - 1) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(x + 26, y); g.lineTo(x + 40, y); g.stroke(); g.setLineDash([]); }
-    x += 42;
+    else if (id && nodeById(id)?.kind === 'event') label(g, '?', x + 12, y, 11, '#FFE082');
+    else if (id && nodeById(id)?.kind === 'supply') { g.fillStyle = '#FF8A65'; g.beginPath(); g.moveTo(x + 5, y + 5); g.lineTo(x + 12, y - 7); g.lineTo(x + 19, y + 5); g.closePath(); g.fill(); }
+    if (i < STOPS.length - 1) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.setLineDash([2, 4]); g.beginPath(); g.moveTo(x + 26, y); g.lineTo(x + step, y); g.stroke(); g.setLineDash([]); }
+    x += step;
   });
   p.lines.slice(0, 7).forEach((ln, i) => label(g, ln, w - 22, 100 + i * 16, 10.5, '#fff', 'right', w * 0.56));
 }

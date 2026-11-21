@@ -16,7 +16,7 @@ import { bar, heart, label, slam } from '../campaign/draw';
 import { sfx } from '../campaign/sfx';
 import { CHARS } from '../characters';
 import { capped, type Mods } from './cards';
-import { LAPSE_FRAMES, RULE_CFG, START_HEARTS, type BossDef, type Diff, type RuleId } from './content';
+import { LAPSE_FRAMES, MAX_BALL_SPEED, RULE_CFG, START_HEARTS, type BossDef, type Diff, type RuleId } from './content';
 import { T } from './texts';
 
 const W = 432, H = 304, NET_X = 216, FLOOR_Y = 270, GROUND_Y = 244, BALL_GROUND = 252;
@@ -166,8 +166,15 @@ function applyMods(p1: Player, ball: Ball, m: Mods): void {
   if (hit && !F.hitEdge && ball.isPowerHit && m.spike !== 1) {
     const k = capped('spike', 1, m.spike);
     if (k > 1) boostSafely(ball, false, k); else scaleBall(ball, k);
+    clampBall(ball);
   }
   F.hitEdge = hit;
+}
+
+/** 球速上限：遠征動過球之後一律再夾一次（之後卡槽變多、倍率疊多高，卡牌造成的球速都不會超過 MAX_BALL_SPEED） */
+export function clampBall(ball: Ball): void {
+  ball.xVelocity = Math.max(-MAX_BALL_SPEED, Math.min(MAX_BALL_SPEED, ball.xVelocity));
+  ball.yVelocity = Math.max(-MAX_BALL_SPEED, Math.min(MAX_BALL_SPEED, ball.yVelocity));
 }
 
 /**
@@ -184,6 +191,8 @@ function extraBallStep(ball: Ball, p1: Player, p2: Player): void {
   ball.x = nx; ball.y = ny; ball.yVelocity = vy + 1;
 }
 
+function lowgravOn(t: number): boolean { return t % RULE_CFG.lowgrav.period >= RULE_CFG.lowgrav.onAt; }
+function lowgravWarn(t: number): boolean { const k = t % RULE_CFG.lowgrav.period; return k >= RULE_CFG.lowgrav.warnAt && k < RULE_CFG.lowgrav.onAt; }
 function windOn(t: number): boolean { return t % RULE_CFG.wind.period >= RULE_CFG.wind.onAt; }
 function windWarn(t: number): boolean { const k = t % RULE_CFG.wind.period; return k >= RULE_CFG.wind.warnAt && k < RULE_CFG.wind.onAt; }
 
@@ -223,6 +232,8 @@ function rulePhysics(c: Controller, r: RuleState): void {
         }
       }
     }
+  } else if (r.id === 'lowgrav') {
+    if (lowgravOn(r.rt) && air && r.rt % 2 === 0) ball.yVelocity -= 1;
   } else if (r.id === 'wind') {
     const Lw = RULE_CFG.wind, k = r.rt % Lw.period;
     if (k === Lw.warnAt) { r.dir = Math.random() < 0.5 ? -1 : 1; sfx('wind'); }
@@ -335,7 +346,7 @@ export function drawHud(c: Controller): void {
 
 function charName(id: string): string { const ch = CHARS.byId[id]; return ch ? ch.name : id; }
 
-const RULE_COLOR: Record<RuleId, string> = { rain: '#4FC3F7', gold: '#FFD54F', wind: '#B2FF59' };
+const RULE_COLOR: Record<RuleId, string> = { rain: '#4FC3F7', gold: '#FFD54F', wind: '#B2FF59', lowgrav: '#FF8AD8' };
 
 function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleState, t: number, lite: boolean): void {
   const ball = c.physics.ball, live = c.state === c.round && !c.roundEnded && !c.gameEnded;
@@ -363,6 +374,21 @@ function drawRule(c: Controller, g: CanvasRenderingContext2D, r: RuleState, t: n
       g.globalAlpha = 1;
       return sp.t < 14;
     });
+  } else if (r.id === 'lowgrav') {
+    const on = lowgravOn(r.rt) && live, warn = lowgravWarn(r.rt) && live;
+    if (on || warn) {
+      if (!lite) { g.globalAlpha = on ? 0.12 : 0.06 + 0.06 * Math.sin(t / 2); g.fillStyle = '#FF80C8'; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
+      for (let k = 0; k < (lite ? 4 : 9); k++) {
+        const nx = (k * 53 + 30) % W, ny = H - ((t * (on ? 1.2 : 0.6) + k * 41) % H);
+        label(g, k % 2 ? '♪' : '♫', nx, ny, 12, '#FFB3E6');
+      }
+      if (warn) label(g, T.lullabyWarn, NET_X, 64, 14, '#FFB3E6');
+      else {
+        const L = RULE_CFG.lowgrav, left = 1 - (r.rt % L.period - L.onAt) / (L.period - L.onAt);
+        g.fillStyle = '#000'; g.fillRect(NET_X - 41, 57, 82, 8); g.fillStyle = '#FF8AD8'; g.fillRect(NET_X - 40, 58, 80 * left, 6);
+        label(g, T.lullabyOn, NET_X, 72, 10, '#FFB3E6');
+      }
+    }
   } else if (r.id === 'wind') {
     const won = windOn(r.rt) && live, wwarn = windWarn(r.rt) && live, dir = r.dir;
     if (won || (wwarn && t % 6 < 4)) {

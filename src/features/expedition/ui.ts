@@ -11,11 +11,11 @@ import * as match from './adapter';
 import { drawCapture, drawMap, drawPostcard, face, sceneNumbers } from './art';
 import { STATS, cardMods } from './cards';
 import {
-  CAPTURE_CHANCE, CARD_SLOTS, DEX_NODE, PARTY_MAX, START_HEARTS, STARTERS, STOPS,
-  matchNode, nodeById, type MatchNode,
+  CAPTURE_CHANCE, CARD_SLOTS, DEX_NODE, EVENTS, FORK_OF, PARTY_MAX, START_HEARTS, STARTERS, STOPS,
+  matchNode, nodeById, type EventChoice, type MatchNode,
 } from './content';
 import { DbError, ExpeditionDb, type LoadState } from './db';
-import { RuleError, newRun } from './logic';
+import { RuleError, eventOf, newRun } from './logic';
 import { newSeed, rngFor } from './rng';
 import { T } from './texts';
 import type { CaptureRecord, ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
@@ -48,6 +48,8 @@ const ui = {
   numsSeed: '',
   raf: 0,
   draw: null as ((t: number) => void) | null,
+  /** 後援換人：先點了哪一隻後援 */
+  swapPick: '' as string,
 };
 
 function okState(): Ok | null { return ui.state && ui.state.kind === 'ok' ? ui.state : null; }
@@ -208,6 +210,8 @@ function pick(cardId: string | null): Promise<void> { return change((db, r) => d
 function branch(option: string): Promise<void> { return change((db, r) => db.chooseBranch(r.revision, option, ids())); }
 function depart(): Promise<void> { const lo = ui.loadout; return change((db, r) => db.leaveSupply(r.revision, lo || r.equippedCardIds, ids())); }
 function sendIn(id: string): Promise<void> { return change((db, r) => db.setLead(r.revision, id, ids())); }
+function swap(benchId: string, out: string | null): Promise<void> { ui.swapPick = ''; return change((db, r) => db.swapIn(r.revision, benchId, out, ids())); }
+function choose(choice: EventChoice): Promise<void> { return change((db, r) => db.resolveEvent(r.revision, choice, ids())); }
 
 function download(blob: Blob, name: string): void {
   const a = document.createElement('a');
@@ -246,7 +250,9 @@ function errorText(e: DbError): string {
 }
 
 function partyView(r: ExpeditionRunV1, canSwitch: boolean): HTMLElement {
+  const wrap = el('div');
   const row = el('div', 'pv-exp-party');
+  const picking = canSwitch && ui.swapPick && r.benchIds.indexOf(ui.swapPick) >= 0 ? ui.swapPick : '';
   r.partyIds.forEach((id, i) => {
     const cell = el('div', 'pv-exp-mate' + (i === 0 ? ' lead' : ''));
     cell.appendChild(portrait(id, i === 0 ? 44 : 34));
@@ -254,10 +260,26 @@ function partyView(r: ExpeditionRunV1, canSwitch: boolean): HTMLElement {
     txt.appendChild(el('b', '', charName(id)));
     txt.appendChild(el('div', 'pv-exp-dim', i === 0 ? T.lead : T.backup));
     cell.appendChild(txt);
-    if (i > 0 && canSwitch) cell.appendChild(button(T.switchLead, () => sendIn(id), 'small'));
+    if (picking) cell.appendChild(button(fmt(T.swapWith, { name: charName(id) }), () => swap(picking, id), 'small main'));
+    else if (i > 0 && canSwitch) cell.appendChild(button(T.switchLead, () => sendIn(id), 'small'));
     row.appendChild(cell);
   });
-  return row;
+  if (picking && r.partyIds.length < PARTY_MAX) row.appendChild(button(T.joinParty, () => swap(picking, null), 'small main'));
+  wrap.appendChild(row);
+  if (r.benchIds.length) {
+    const bench = el('div', 'pv-exp-bench');
+    bench.appendChild(el('span', 'pv-exp-dim', T.bench + '：'));
+    r.benchIds.forEach((id) => {
+      const b = button('', () => { ui.swapPick = ui.swapPick === id ? '' : id; render(); }, 'char small' + (picking === id ? ' on' : ''));
+      b.appendChild(portrait(id, 26)); b.appendChild(el('span', '', charName(id)));
+      if (!canSwitch) b.disabled = true;
+      bench.appendChild(b);
+    });
+    if (picking) bench.appendChild(button(T.cancel, () => { ui.swapPick = ''; render(); }, 'small'));
+    wrap.appendChild(bench);
+    if (canSwitch) wrap.appendChild(el('div', 'pv-exp-dim', T.benchHint));
+  }
+  return wrap;
 }
 
 function captureLine(node: MatchNode): string {
@@ -354,16 +376,18 @@ function dexView(body: HTMLElement): void {
 
 /** 地圖；剛結算完有收服的話，同一塊畫布先播收服演出 */
 function mapStage(body: HTMLElement, r: ExpeditionRunV1): void {
-  const [c, g] = stage(520, 172), n = nums(r.seed), sc = ui.scene, names = stopNames();
+  // 窄螢幕：畫布的邏輯寬度變小（同樣的字在手機上大一點），只標目前這一站
+  const compact = window.innerWidth < 560, W2 = compact ? 380 : 520, H2 = compact ? 190 : 200;
+  const [c, g] = stage(W2, H2), n = nums(r.seed), sc = ui.scene, names = stopNames();
   body.appendChild(c);
   ui.draw = (t) => {
     if (sc && ui.scene === sc) {
       const f = (performance.now() - sc.start) / 33, name = charName(sc.rec.char);
-      drawCapture(g, 520, 172, f, t, n, sc.rec.char, sc.rec.ok,
+      drawCapture(g, W2, H2, f, t, n, sc.rec.char, sc.rec.ok,
         fmt(sc.rec.ok ? T.captureOk : T.captureFail, { name }), sc.rec.ok ? (sc.rec.joined ? T.captureJoin : T.captureDex) : '');
       return;
     }
-    drawMap(g, 520, 172, t, { nums: n, nodeId: r.nodeId, visited: r.visitedNodeIds, lead: r.partyIds[0], hearts: r.hearts, maxHearts: START_HEARTS, ended: r.phase === 'cleared' || r.phase === 'failed', names });
+    drawMap(g, W2, H2, t, { compact, nums: n, nodeId: r.nodeId, visited: r.visitedNodeIds, lead: r.partyIds[0], hearts: r.hearts, maxHearts: START_HEARTS, ended: r.phase === 'cleared' || r.phase === 'failed', names });
   };
 }
 
@@ -436,7 +460,7 @@ function render(): void {
     return;
   }
   const node = nodeById(r.nodeId), mn = matchNode(r.nodeId);
-  const stop = STOPS.findIndex((s) => s.indexOf(r.nodeId) >= 0);
+  const stop = FORK_OF[r.nodeId] !== undefined ? FORK_OF[r.nodeId] : STOPS.findIndex((s) => s.indexOf(r.nodeId) >= 0);
   body.appendChild(el('div', 'pv-exp-dim', fmt(T.stopOf, { n: (stop < 0 ? 1 : stop) + 1, total: STOPS.length })));
   body.appendChild(partyView(r, ui.canWrite && r.phase === 'map'));
   const tail = (): void => {
@@ -478,6 +502,20 @@ function render(): void {
     const row = el('div', 'pv-exp-fork');
     node.options.forEach((id) => { const o = matchNode(id); if (o) row.appendChild(nodeCard(o, button(T.choose, () => branch(id), 'main'))); });
     body.appendChild(row);
+  } else if (node && node.kind === 'event') {
+    const ev = eventOf(r);
+    if (ev) {
+      const box = el('div', 'pv-exp-node');
+      box.appendChild(el('b', '', '？ ' + T.eventTitle[ev]));
+      box.appendChild(el('p', '', T.eventDesc[ev]));
+      EVENTS[ev].forEach((ch) => {
+        const full = ch === 'heal' && r.hearts >= START_HEARTS;
+        const b = button(T.eventChoice[ch] + (full ? '（' + T.heartsFull + '）' : ''), () => choose(ch), ch === 'leave' ? '' : 'main');
+        if (full) b.disabled = true;
+        box.appendChild(b);
+      });
+      body.appendChild(box);
+    }
   } else if (node && node.kind === 'supply') {
     const lo = ui.loadout || r.equippedCardIds.slice();
     body.appendChild(el('b', '', nodeName(node.id)));
@@ -556,5 +594,19 @@ export const debug = {
   exportAll: async () => (await ensureDb()).exportAll(),
   reload,
   show,
-  actions: { startNewRun, fight, pick, branch, depart, sendIn },
+  actions: { startNewRun, fight, pick, branch, depart, sendIn, swap, choose },
+  /**
+   * 電腦對電腦打某一站（不寫存檔），用來檢查場地規則會不會卡死。
+   * 回傳 false 表示遊戲本體還沒好或有其他模式在用。結束後呼叫 soakStop()。
+   */
+  soak: (nodeId: string, lead: CharacterId = 'pikachu', mods?: Record<string, number>): boolean => {
+    const node = matchNode(nodeId);
+    if (!node || match.playing()) return false;
+    hide();
+    return match.start({
+      matchId: 'soak/' + nodeId, p1: lead, p2: node.opp, score: node.score, cpuP1: true,
+      field: { title: nodeName(node.id), hearts: START_HEARTS, rule: node.rule, diff: node.diff, boss: node.boss, mods: mods as never },
+    }, () => { /* 不結算 */ }, () => { /* 不處理 */ });
+  },
+  soakStop: () => match.stop(true),
 };

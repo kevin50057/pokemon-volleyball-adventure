@@ -23,6 +23,8 @@ export interface MatchSpec {
   score: number;
   /** 場地規則、卡牌、電腦強度、首領…（不給就是完全沒有修飾的比賽） */
   field?: FieldSpec;
+  /** 除錯用：左邊也交給電腦打（電腦對電腦，檢查場地規則會不會卡死）。不會寫存檔。 */
+  cpuP1?: boolean;
 }
 
 /** 分出勝負的那一幀呼叫一次 */
@@ -61,7 +63,7 @@ export function start(spec: MatchSpec, onEnd: OnEnd, onInterrupt: OnInterrupt): 
   if (!S.saved) S.saved = { c1: ph.player1.character, c2: ph.player2.character, k1: ph.player1.isComputer, k2: ph.player2.isComputer, win: c.winningScore, practice: !!c.isPracticeMode };
   S.spec = spec; S.ended = false; S.endFrames = 0; S.onEnd = onEnd; S.onInterrupt = onInterrupt; S.hiddenPaused = false;
   ph.player1.character = spec.p1; ph.player2.character = spec.p2;
-  ph.player1.isComputer = false; ph.player2.isComputer = true;
+  ph.player1.isComputer = !!spec.cpuP1; ph.player2.isComputer = true;
   if (c.isPracticeMode) c.isPracticeMode = false;
   c.winningScore = spec.score;
   c.paused = false;
@@ -122,7 +124,7 @@ function tickLayer(next: (c: Controller) => boolean | void, c: Controller): bool
   // 比賽中從選角面板換角色不算數（百變怪自己會變身，不管它）
   if (spec.p1 !== 'ditto' && ph.player1.character !== spec.p1) ph.player1.character = spec.p1;
   if (spec.p2 !== 'ditto' && ph.player2.character !== spec.p2) ph.player2.character = spec.p2;
-  ph.player1.isComputer = false; ph.player2.isComputer = true;
+  ph.player1.isComputer = !!spec.cpuP1; ph.player2.isComputer = true;
   // 兩組按鍵（和兩邊的觸控）都能控制自己
   if (!k0.xDirection) k0.xDirection = k1.xDirection;
   if (!k0.yDirection) k0.yDirection = k1.yDirection;

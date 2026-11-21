@@ -8,8 +8,9 @@
  */
 import {
   RuleError, applySettlement, beginMatch as ruleBegin, chooseBranch as ruleBranch, leaveSupply as ruleSupply,
-  makeSettlement, newProfile, pickReward as rulePick, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
+  makeSettlement, newProfile, pickReward as rulePick, resolveEvent as ruleEvent, swapIn as ruleSwap, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
 } from './logic';
+import type { EventChoice } from './content';
 import type { ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
 
 export const DB_NAME = 'pva-expedition';
@@ -166,6 +167,8 @@ export class ExpeditionDb {
   chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleBranch(r, rev, option)); }
   leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
   setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
+  swapIn(rev: number, benchId: string, out: string | null, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleSwap(r, rev, benchId, out)); }
+  resolveEvent(rev: number, choice: EventChoice, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleEvent(r, rev, choice)); }
 
   /** 三選一：選卡（或略過）和結算紀錄上的 picked 在同一個 transaction 裡寫 */
   async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRunV1> {

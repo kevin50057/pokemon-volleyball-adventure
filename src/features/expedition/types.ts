@@ -8,7 +8,7 @@ export const SCHEMA_VERSION = 1;
 /** 亂數演算法版本：改了 rng.ts 的算法就要加一（同 seed 才會得到同樣的掉落） */
 export const RNG_VERSION = 1;
 /** 內容版本：路線、對手、勝分、卡牌等設定改了就要換 */
-export const CONTENT_VERSION = 'm2-1';
+export const CONTENT_VERSION = 'c1-1';
 
 export type Phase = 'map' | 'active' | 'reward' | 'cleared' | 'failed';
 export type MatchResult = 'win' | 'loss' | 'forfeit';
@@ -39,6 +39,8 @@ export interface ExpeditionRunV1 {
   losses: number;
   /** 隊伍，最多 2 隻；第一隻是上場的 */
   partyIds: string[];
+  /** 這一輪收服、但隊伍滿了沒帶在身上的（在地圖上可以換進隊伍） */
+  benchIds: string[];
   /** 裝備中的卡，最多 2 張，一定是 ownedCardIds 裡的 */
   equippedCardIds: string[];
   ownedCardIds: string[];

@@ -5,13 +5,14 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { DbError, ExpeditionDb } from './db';
 import { activeBonds, capped, cardMods, offerCards } from './cards';
-import { CARDS, CHAR_TAG, DEX_NODE, NODES, STOPS, cardById, matchNode, nodeById } from './content';
-import { RuleError, applySettlement, beginMatch, chooseBranch, leaveSupply, newProfile, newRun, pickReward, setLead, validateRun } from './logic';
+import { CAPS, CARDS, CHAR_TAG, DEX_NODE, EVENTS, FORK_OF, MAX_BALL_SPEED, NODES, STOPS, cardById, matchNode, nodeById } from './content';
+import { RuleError, applySettlement, beginMatch, chooseBranch, eventOf, leaveSupply, newProfile, newRun, pickReward, resolveEvent, setLead, swapIn, validateRun } from './logic';
+import { clampBall } from './field';
 import { rngFor } from './rng';
 import { START_HEARTS } from './content';
 import type { ExpeditionRunV1 } from './types';
 
-const IDS = ['pikachu', 'vaporeon', 'jolteon', 'magikarp', 'psyduck', 'meowth', 'farfetchd', 'dragonite'];
+const IDS = ['pikachu', 'vaporeon', 'jolteon', 'flareon', 'charmander', 'bulbasaur', 'squirtle', 'magikarp', 'psyduck', 'meowth', 'jigglypuff', 'snorlax', 'farfetchd', 'dugtrio', 'mrmime', 'dragonite'];
 
 async function freshDb(factory = new IDBFactory()): Promise<{ db: ExpeditionDb; factory: IDBFactory }> {
   return { db: await ExpeditionDb.open(factory, 'test'), factory };
@@ -67,7 +68,7 @@ describe('rules', () => {
     expect(r.phase).toBe('failed');
     expect(r.losses).toBe(START_HEARTS);
   });
-  it('a full winning route: warm-up, fork, branch, supply, elite, boss', () => {
+  it('a full winning route through the whole first chapter', () => {
     let r = newRun('r', 's', ['pikachu', 'vaporeon'], 0), p = newProfile();
     const win = (): void => {
       r = beginMatch(r, r.revision);
@@ -76,21 +77,73 @@ describe('rules', () => {
       if (r.phase === 'reward') r = pickReward(r, r.revision, (r.pendingReward as { offeredCardIds: string[] }).offeredCardIds[0]);
     };
     win();
-    expect(r.nodeId).toBe('fork');
+    expect(r.nodeId).toBe('fork1');
     expect(() => beginMatch(r, r.revision)).toThrow(RuleError);          // 岔路不能直接開打
     expect(() => chooseBranch(r, r.revision, 'boss')).toThrow(RuleError);
     r = chooseBranch(r, r.revision, 'gold');
     win();
-    expect(r.nodeId).toBe('supply');
+    expect(r.nodeId).toBe('event1');
+    expect(() => beginMatch(r, r.revision)).toThrow(RuleError);          // 奇遇不能開打
+    r = resolveEvent(r, r.revision, 'leave');
+    expect(r.nodeId).toBe('fork2');
+    r = chooseBranch(r, r.revision, 'nap');
+    win();
     r = leaveSupply(r, r.revision, r.equippedCardIds);
-    expect(r.nodeId).toBe('elite');
-    win(); win();
+    win();
+    r = chooseBranch(r, r.revision, 'mirror');
+    win();
+    expect(r.nodeId).toBe('camp');
+    r = leaveSupply(r, r.revision, r.equippedCardIds);
+    win();
     expect(r.phase).toBe('cleared');
-    expect(r.visitedNodeIds).toEqual(['warmup', 'gold', 'supply', 'elite', 'boss']);
-    expect(r.ownedCardIds.length).toBe(3);
+    expect(r.visitedNodeIds).toEqual(['warmup', 'gold', 'event1', 'nap', 'supply', 'elite', 'mirror', 'camp', 'boss']);
+    expect(r.ownedCardIds.length).toBe(5);
     expect(r.equippedCardIds.length).toBe(2);
     expect(r.hearts).toBe(START_HEARTS);
     expect(p.expeditionUnlocked).toEqual(expect.arrayContaining(['magikarp', 'farfetchd', 'dragonite']));
+  });
+  it('events: fixed by the seed, heal is capped, card choices go through reward', () => {
+    const at = (seed: string, hearts = START_HEARTS) => ({ ...newRun('r', seed, 'pikachu', 0), nodeId: 'event1', hearts });
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const r = at('e' + i), ev = eventOf(r);
+      expect(ev).toBe(eventOf(r));
+      seen.add(ev as string);
+      const opts = EVENTS[ev as keyof typeof EVENTS];
+      expect(opts[opts.length - 1]).toBe('leave');
+      expect(() => resolveEvent(r, r.revision, 'cards9' as never)).toThrow(RuleError);
+      if (opts.indexOf('heal') >= 0) {
+        expect(resolveEvent(r, r.revision, 'heal').hearts).toBe(START_HEARTS);
+        const hurt = at('e' + i, 1);
+        expect(resolveEvent(hurt, hurt.revision, 'heal').hearts).toBe(2);
+      }
+      const cardOpt = opts.find((o) => o === 'cards2' || o === 'cards3');
+      if (cardOpt) {
+        const out = resolveEvent(r, r.revision, cardOpt);
+        expect(out.phase).toBe('reward');
+        expect(out.nodeId).toBe('fork2');
+        expect((out.pendingReward as { offeredCardIds: string[] }).offeredCardIds.length).toBe(cardOpt === 'cards2' ? 2 : 3);
+        expect(pickReward(out, out.revision, null).phase).toBe('map');
+      }
+    }
+    expect(seen.size).toBe(3);
+  });
+  it('bench: a capture with a full party waits on the bench and can be swapped in', () => {
+    let r = beginMatch(newRun('r', 's', ['pikachu', 'vaporeon'], 0), 1);
+    const out = applySettlement(r, newProfile(), r.matchId as string, 'win');
+    r = pickReward(out.run, out.run.revision, null);
+    expect(r.benchIds).toEqual(['magikarp']);
+    expect(() => swapIn(r, r.revision, 'magikarp', null)).toThrow(RuleError);   // 隊伍滿了，要指定換誰
+    expect(() => swapIn(r, r.revision, 'jolteon', 'pikachu')).toThrow(RuleError);
+    const a = swapIn(r, r.revision, 'magikarp', 'pikachu');
+    expect(a.partyIds).toEqual(['magikarp', 'vaporeon']);                     // 頂替上場的位置
+    expect(a.benchIds).toEqual(['pikachu']);
+    const b = swapIn(a, a.revision, 'pikachu', 'vaporeon');
+    expect(b.partyIds).toEqual(['magikarp', 'pikachu']);
+    expect(b.benchIds).toEqual(['vaporeon']);
+    const solo = { ...newRun('r', 's', 'pikachu', 0), benchIds: ['magikarp'] };
+    expect(swapIn(solo, solo.revision, 'magikarp', null).partyIds).toEqual(['pikachu', 'magikarp']);
+    expect(validateRun({ ...b, benchIds: ['magikarp'] }, IDS).ok).toBe(false);  // 同時在隊伍和後援：壞檔
   });
   it('a sure capture joins the party when there is room, and is only recorded when full', () => {
     let r = beginMatch(newRun('r', 's', 'pikachu', 0), 1);
@@ -101,6 +154,7 @@ describe('rules', () => {
     out = applySettlement(r, newProfile(), r.matchId as string, 'win');
     expect(out.capture && out.capture.joined).toBe(false);
     expect(out.run.partyIds).toEqual(['pikachu', 'vaporeon']);
+    expect(out.run.benchIds).toEqual(['magikarp']);
     expect(out.profile.expeditionUnlocked).toEqual(['magikarp']);
     // 已經收服過：不會再收一次
     r = beginMatch(newRun('r2', 's', 'pikachu', 0), 1);
@@ -144,7 +198,7 @@ describe('rules', () => {
     expect(() => pickReward(skipped, skipped.revision, (a.offered as string[])[0])).toThrow(RuleError);   // 不能再選一次
     // 牌池不夠就少給，沒有就不進 reward
     const rng = { next: () => 0, int: () => 0, pick: <T>(x: readonly T[]) => x[0] };
-    expect(offerCards(CARDS.slice(0, 4).map((c) => c.id), rng).length).toBe(2);
+    expect(offerCards(CARDS.slice(0, CARDS.length - 2).map((c) => c.id), rng).length).toBe(2);
     expect(offerCards(CARDS.map((c) => c.id), rng)).toEqual([]);
   });
   it('supply: loadout must be owned cards, at most two; switching the lead reorders the party', () => {
@@ -313,10 +367,12 @@ describe('cards and bonds', () => {
       if (n.kind === 'supply') expect(nodeById(n.next)).toBeTruthy();
     });
     STOPS.forEach((st) => st.forEach((id) => expect(nodeById(id)).toBeTruthy()));
+    Object.keys(FORK_OF).forEach((f) => { const n = nodeById(f); expect(n && n.kind).toBe('fork'); (n as { options: string[] }).options.forEach((o) => expect(STOPS[FORK_OF[f]]).toContain(o)); });
+    NODES.forEach((n) => { if (n.kind === 'event') n.pool.forEach((e) => expect(EVENTS[e]).toBeTruthy()); });
     Object.keys(DEX_NODE).forEach((ch) => { expect(IDS).toContain(ch); expect((matchNode(DEX_NODE[ch]) as { opp: string }).opp).toBe(ch); });
     Object.keys(CHAR_TAG).forEach((ch) => expect(IDS).toContain(ch));
     expect(new Set(CARDS.map((c) => c.id)).size).toBe(CARDS.length);
-    expect(CARDS.length).toBe(6);
+    expect(CARDS.length).toBe(12);
   });
   it('the same card never counts twice and order does not matter', () => {
     expect(cardMods('vaporeon', ['quickShoes', 'quickShoes']).move).toBeCloseTo(1.08);
@@ -330,6 +386,26 @@ describe('cards and bonds', () => {
     expect(activeBonds('farfetchd', ['lightFeather'])).toEqual(['wind']);
     expect(cardMods('pikachu', ['voltBall']).dive).toBeCloseTo(1.12 * 1.08);
     expect(cardMods('farfetchd', ['lightFeather']).jump).toBeCloseTo(1.08 * 1.06);
+  });
+  it('no two-card loadout, with any lead and its bond, pushes a stat past its cap', () => {
+    const leads = ['pikachu', 'jolteon', 'flareon', 'charmander', 'vaporeon', 'squirtle', 'bulbasaur', 'farfetchd', 'dragonite', 'magikarp'];
+    const base = { move: [0.95, 1.05], jump: [0.92, 1], spike: [0.95, 1], dive: [1, 1.15] } as const;
+    let worst = 0;
+    CARDS.forEach((a) => CARDS.forEach((b) => leads.forEach((lead) => {
+      const m = cardMods(lead, [a.id, b.id]);
+      (['move', 'jump', 'spike', 'dive'] as const).forEach((k) => base[k].forEach((cb) => {
+        const v = capped(k, cb, m[k]);
+        expect(v).toBeLessThanOrEqual(Math.max(CAPS[k][1], cb) + 1e-9);
+        expect(v).toBeGreaterThanOrEqual(Math.min(CAPS[k][0], cb) - 1e-9);
+        if (k === 'spike') worst = Math.max(worst, v);
+      }));
+    })));
+    expect(worst).toBeLessThanOrEqual(1.15);
+  });
+  it('the ball is clamped to the engine speed limit after any expedition change', () => {
+    const ball = { xVelocity: 41, yVelocity: -55 } as never as { xVelocity: number; yVelocity: number };
+    clampBall(ball as never);
+    expect(ball).toEqual({ xVelocity: MAX_BALL_SPEED, yVelocity: -MAX_BALL_SPEED });
   });
   it('multipliers are capped together with the character\'s own', () => {
     expect(capped('move', 1, 1.08 * 1.06)).toBeCloseTo(1.1448);

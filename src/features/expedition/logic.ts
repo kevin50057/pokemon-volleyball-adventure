@@ -10,7 +10,8 @@
  */
 import { offerCards } from './cards';
 import {
-  CAPTURE_CHANCE, CARD_SLOTS, FIRST_NODE, PARTY_MAX, START_HEARTS, cardById, matchNode, nodeById,
+  CAPTURE_CHANCE, CARD_SLOTS, EVENTS, FIRST_NODE, PARTY_MAX, START_HEARTS, cardById, matchNode, nodeById,
+  type EventChoice, type EventId,
 } from './content';
 import { rngFor } from './rng';
 import {
@@ -33,7 +34,7 @@ export function newRun(runId: string, seed: string, party: string | readonly str
   return {
     schemaVersion: 1, runId, seed, rngVersion: RNG_VERSION, contentVersion: CONTENT_VERSION,
     phase: 'map', nodeId: FIRST_NODE, attemptNo: 0, hearts: START_HEARTS, losses: 0,
-    partyIds: ids, equippedCardIds: [], ownedCardIds: [], visitedNodeIds: [],
+    partyIds: ids, benchIds: [], equippedCardIds: [], ownedCardIds: [], visitedNodeIds: [],
     revision: 1, createdAt: now,
   };
 }
@@ -52,7 +53,7 @@ export function expectRevision(run: ExpeditionRunV1, rev: number): void {
 function bump(run: ExpeditionRunV1): ExpeditionRunV1 {
   return {
     ...run, revision: run.revision + 1,
-    partyIds: run.partyIds.slice(), equippedCardIds: run.equippedCardIds.slice(),
+    partyIds: run.partyIds.slice(), benchIds: run.benchIds.slice(), equippedCardIds: run.equippedCardIds.slice(),
     ownedCardIds: run.ownedCardIds.slice(), visitedNodeIds: run.visitedNodeIds.slice(),
   };
 }
@@ -119,6 +120,53 @@ export function setLead(run: ExpeditionRunV1, rev: number, charId: string): Expe
   return next;
 }
 
+/**
+ * 把後援換進隊伍。out 給 null：隊伍還有空位，直接加入；
+ * 否則 out 那一隻（留在原本的位置順序）換下來進後援。換上場的那隻如果頂替的是第一隻，就變成上場的。
+ */
+export function swapIn(run: ExpeditionRunV1, rev: number, benchId: string, out: string | null): ExpeditionRunV1 {
+  expectRevision(run, rev);
+  inMap(run, 'swap partners');
+  if (run.benchIds.indexOf(benchId) < 0) throw new RuleError('invalid', benchId + ' is not on the bench');
+  const next = bump(run);
+  next.benchIds = run.benchIds.filter((id) => id !== benchId);
+  if (out === null) {
+    if (run.partyIds.length >= PARTY_MAX) throw new RuleError('invalid', 'the party is full');
+    next.partyIds.push(benchId);
+    return next;
+  }
+  const i = run.partyIds.indexOf(out);
+  if (i < 0) throw new RuleError('invalid', out + ' is not in the party');
+  next.partyIds[i] = benchId;
+  next.benchIds.push(out);
+  return next;
+}
+
+/** 這個奇遇節點遇到的是哪一個（由種子決定，重整不會變） */
+export function eventOf(run: ExpeditionRunV1): EventId | null {
+  const n = nodeById(run.nodeId);
+  if (!n || n.kind !== 'event') return null;
+  return rngFor(run.seed, n.id, 'event', run.rngVersion).pick(n.pool);
+}
+
+/** 奇遇：選一個選項。回 1 心不會超過上限；拿卡的話進三選一（或二選一） */
+export function resolveEvent(run: ExpeditionRunV1, rev: number, choice: EventChoice): ExpeditionRunV1 {
+  expectRevision(run, rev);
+  inMap(run, 'resolve an event');
+  const n = nodeById(run.nodeId), ev = eventOf(run);
+  if (!n || n.kind !== 'event' || !ev) throw new RuleError('phase', run.nodeId + ' is not an event');
+  if (EVENTS[ev].indexOf(choice) < 0) throw new RuleError('invalid', choice + ' is not an option of ' + ev);
+  const next = bump(run);
+  next.visitedNodeIds.push(n.id);
+  next.nodeId = n.next; next.attemptNo = 0;
+  if (choice === 'heal') next.hearts = Math.min(START_HEARTS, run.hearts + 1);
+  if (choice === 'cards2' || choice === 'cards3') {
+    const offered = offerCards(run.ownedCardIds, rngFor(run.seed, n.id, 'cards', run.rngVersion), choice === 'cards2' ? 2 : 3);
+    if (offered.length) { next.phase = 'reward'; next.pendingReward = { settlementId: settlementIdOf(run.runId, n.id + '#event'), offeredCardIds: offered }; }
+  }
+  return next;
+}
+
 export interface Settled {
   run: ExpeditionRunV1;
   profile: ProfileV1;
@@ -153,6 +201,7 @@ export function applySettlement(run: ExpeditionRunV1, profile: ProfileV1, matchI
       p.expeditionUnlocked.push(node.opp);
       delete p.captureMissesByCharacter[node.opp];
       if (next.partyIds.length < PARTY_MAX && next.partyIds.indexOf(node.opp) < 0) { next.partyIds.push(node.opp); joined = true; }
+      else if (next.benchIds.indexOf(node.opp) < 0 && next.partyIds.indexOf(node.opp) < 0) next.benchIds.push(node.opp);
     } else {
       p.captureMissesByCharacter[node.opp] = (p.captureMissesByCharacter[node.opp] || 0) + 1;
     }
@@ -224,6 +273,7 @@ export function validateRun(raw: unknown, knownIds: readonly string[]): Check<Ex
   if (!isInt(r.losses, 0, 1e6)) return bad('losses');
   if (!isInt(r.revision, 1, Number.MAX_SAFE_INTEGER)) return bad('revision');
   if (!isStrArr(r.partyIds) || r.partyIds.length < 1 || r.partyIds.length > PARTY_MAX || !distinct(r.partyIds) || !r.partyIds.every((id) => knownIds.includes(id))) return bad('partyIds');
+  if (!isStrArr(r.benchIds) || !distinct(r.benchIds) || !r.benchIds.every((id) => knownIds.includes(id) && !(r.partyIds as string[]).includes(id))) return bad('benchIds');
   if (!isStrArr(r.equippedCardIds) || !isStrArr(r.ownedCardIds) || !isStrArr(r.visitedNodeIds)) return bad('ids');
   const owned = r.ownedCardIds, equipped = r.equippedCardIds;
   if (!distinct(owned) || !owned.every((id) => !!cardById(id))) return bad('ownedCardIds');

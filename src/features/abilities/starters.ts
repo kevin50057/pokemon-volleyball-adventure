@@ -22,10 +22,10 @@ export function starterMove(ch: string): number {
     : ch === 'bulbasaur' ? TUNING.bulbasaurMove
       : ch === 'squirtle' ? TUNING.squirtleMove : 1;
 }
-function diveMult(ch: string): number {
+export function diveMult(ch: string): number {
   return ch === 'charmander' ? TUNING.charmanderDive : ch === 'squirtle' ? TUNING.squirtleDive : 1;
 }
-function jumpMult(ch: string): number {
+export function jumpMult(ch: string): number {
   return ch === 'bulbasaur' ? TUNING.bulbasaurJump : ch === 'squirtle' ? TUNING.squirtleJump : 1;
 }
 
@@ -33,7 +33,7 @@ function jumpMult(ch: string): number {
  * 跳躍高度的倍率換成起跳速度。本體的跳躍：第一幀上升 16，之後 15、14、…每幀少 1，
  * 總高度 ≈ 16 + v(v+1)/2（v = 15 時是 136）。解 16 + v'(v'+1)/2 = 136 × 倍率。
  */
-function jumpVelocity(mult: number): number {
+export function jumpVelocity(mult: number): number {
   const h = (16 + JUMP_VY * (JUMP_VY + 1) / 2) * mult - 16;
   return (-1 + Math.sqrt(1 + 8 * h)) / 2;
 }
@@ -72,7 +72,7 @@ export function shellRestore(player: Player, mark: ShellMark | null, s: AbilityS
   if (blocked) pushBurst(player.x, player.y, '#9CD8FF', 28);
 }
 
-function scaleBall(ball: Ball, k: number): void {
+export function scaleBall(ball: Ball, k: number): void {
   const sx = ball.xVelocity < 0 ? -1 : 1, sy = ball.yVelocity < 0 ? -1 : 1;
   ball.xVelocity = sx * Math.min(30, Math.round(Math.abs(ball.xVelocity) * k));
   ball.yVelocity = sy * Math.min(30, Math.round(Math.abs(ball.yVelocity) * k));
@@ -96,7 +96,7 @@ function landsClean(x: number, y: number, vx: number, vy: number, fromP2: boolea
  * 殺球加速：先試「水平、垂直都乘 k」，不行再試「落點不變、早一點落地」。
  * 只有原本的球路就會乾淨落在對面、加速後也一樣時才改，免得加速反而掛網或撞牆彈回來。
  */
-function boostSafely(ball: Ball, fromP2: boolean, k: number): boolean {
+export function boostSafely(ball: Ball, fromP2: boolean, k: number): boolean {
   if (!landsClean(ball.x, ball.y, ball.xVelocity, ball.yVelocity, fromP2)) return false;
   const vx0 = ball.xVelocity, vy0 = ball.yVelocity;
   scaleBall(ball, k);

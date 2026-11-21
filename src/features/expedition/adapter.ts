@@ -7,11 +7,13 @@
  *     就把結果交出去（只交一次），存檔層再用 matchId 去重。
  *  3. 離場 stop()：還原角色、勝分、練習模式，回到標題畫面。
  *
- * 比賽本身不加任何修飾（M1）：不改 TUNING、不改計分、不改球。
+ * 比賽的修飾（場地規則、卡牌、首領…）都在 field.ts；spec.field 沒給的話比賽跟遊戲本體原本的一模一樣。
  */
 import { hooks } from '../../core/hooks';
 import { svc } from '../../core/services';
 import type { CharacterId, Controller, GameState } from '../../core/types';
+import * as field from './field';
+import type { FieldSpec } from './field';
 import type { MatchResult } from './types';
 
 export interface MatchSpec {
@@ -19,6 +21,8 @@ export interface MatchSpec {
   p1: CharacterId;
   p2: CharacterId;
   score: number;
+  /** 場地規則、卡牌、電腦強度、首領…（不給就是完全沒有修飾的比賽） */
+  field?: FieldSpec;
 }
 
 /** 分出勝負的那一幀呼叫一次 */
@@ -68,6 +72,8 @@ export function start(spec: MatchSpec, onEnd: OnEnd, onInterrupt: OnInterrupt): 
   c.noInputFrameCounter = 0;
   c.view.game.visible = false;
   try { c.audio.sounds.bgm.stop(); } catch { /* 沒有音效 */ }
+  field.end(c);
+  if (spec.field) field.begin(c, spec.field);
   c.state = c.startOfNewGame;
   return true;
 }
@@ -76,6 +82,7 @@ export function start(spec: MatchSpec, onEnd: OnEnd, onInterrupt: OnInterrupt): 
 export function stop(toTitle: boolean): void {
   const c = svc.ctrl;
   S.spec = null; S.onEnd = null; S.onInterrupt = null; S.ended = false; S.hiddenPaused = false;
+  field.end(c);
   if (c && S.saved) {
     const s = S.saved, ph = c.physics;
     ph.player1.character = s.c1; ph.player2.character = s.c2;
@@ -110,6 +117,7 @@ function tickLayer(next: (c: Controller) => boolean | void, c: Controller): bool
   const spec = S.spec;
   if (!spec) return next(c);
   if (netBusy()) { const cb = S.onInterrupt; stop(false); if (cb) cb('left'); return next(c); }
+  if (field.pre(c) === false) return false;     // 首領換階段的預告：整幀停住
   const ph = c.physics, k0 = c.keyboardArray[0], k1 = c.keyboardArray[1];
   // 比賽中從選角面板換角色不算數（百變怪自己會變身，不管它）
   if (spec.p1 !== 'ditto' && ph.player1.character !== spec.p1) ph.player1.character = spec.p1;
@@ -131,11 +139,14 @@ function tickLayer(next: (c: Controller) => boolean | void, c: Controller): bool
       c.state = waitState;     // 停在場上，等畫面上的結算
     }
   }
-  return next(c);
+  const res = next(c);
+  if (res !== false) field.physics(c);          // 只在這一幀真的會跑物理時才套（擊球停格的幀不算）
+  return res;
 }
 
 function gameLoopLayer(next: (c: Controller) => void, c: Controller): void {
   next(c);
+  field.drawHud(c);
   // 玩家從選單按了「重來」：遊戲本體自己回到標題。比賽算中斷（不扣心，下次從頭重打）
   if (S.spec && !S.ended && (c.state === c.intro || c.state === c.menu)) {
     const cb = S.onInterrupt; stop(false); if (cb) cb('left');
@@ -145,6 +156,8 @@ function gameLoopLayer(next: (c: Controller) => void, c: Controller): void {
 export function installHooks(): void {
   hooks.tick.use(tickLayer);
   hooks.gameLoop.use(gameLoopLayer);
+  hooks.score.use(field.scoreLayer);
+  hooks.ai.use(field.aiLayer);
   // 切到背景：暫停並清空按鍵；回到前景要玩家明確按「繼續」（SPEC §5.2）
   document.addEventListener('visibilitychange', () => {
     const c = svc.ctrl;

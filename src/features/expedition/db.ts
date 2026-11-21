@@ -7,8 +7,8 @@
  *  - 寫不進去（容量、權限）丟出 DbError，由畫面顯示，不假裝已存。
  */
 import {
-  RuleError, applySettlement, beginMatch as ruleBegin, makeSettlement, newProfile,
-  settlementIdOf, validateProfile, validateRun,
+  RuleError, applySettlement, beginMatch as ruleBegin, chooseBranch as ruleBranch, leaveSupply as ruleSupply,
+  makeSettlement, newProfile, pickReward as rulePick, setLead as ruleLead, settlementIdOf, validateProfile, validateRun,
 } from './logic';
 import type { ExpeditionRunV1, MatchResult, ProfileV1, SettlementV1 } from './types';
 
@@ -135,19 +135,57 @@ export class ExpeditionDb {
    * 結算一場。同一個 matchId 已經結算過就直接回傳那一筆（duplicate: true），不再改任何東西。
    * profile、run、settlement 在同一個 transaction 裡寫。
    */
-  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], faults: TestFaults = {}): Promise<{ run: ExpeditionRunV1; settlement: SettlementV1; duplicate: boolean }> {
+  async settle(matchId: string, result: MatchResult, scores: [number, number], now: number, knownIds: readonly string[], faults: TestFaults = {}): Promise<{ run: ExpeditionRunV1; profile: ProfileV1; settlement: SettlementV1; duplicate: boolean }> {
     return this.tx([S_PROFILE, S_RUN, S_SETTLE], 'readwrite', async (t) => {
-      const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE);
+      const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE), ps = t.objectStore(S_PROFILE);
       const run = this.must(await req(rs.get(KEY)), knownIds);
+      const profile = this.mustProfile(await req(ps.get(KEY)), knownIds);
       const sid = settlementIdOf(run.runId, matchId);
       const done = await req(ss.get(sid)) as SettlementV1 | undefined;
-      if (done) return { run, settlement: done, duplicate: true };
-      const after = applySettlement(run, matchId, result);
+      if (done) return { run, profile, settlement: done, duplicate: true };
+      const after = applySettlement(run, profile, matchId, result);
       const st = makeSettlement(run, after, matchId, result, scores, now);
-      await req(rs.put(after, KEY));
+      await req(rs.put(after.run, KEY));
       if (faults.crashAfterRunPut) throw new DbError('aborted', 'simulated crash after run write');
+      if (after.profile !== profile) await req(ps.put(after.profile, KEY));
       await req(ss.add(st));
-      return { run: after, settlement: st, duplicate: false };
+      return { run: after.run, profile: after.profile, settlement: st, duplicate: false };
+    });
+  }
+
+  /** 只改 run 的變更（選路、換夥伴、離開補給站）：讀 → 規則檢查 revision → 寫 */
+  private change(knownIds: readonly string[], fn: (run: ExpeditionRunV1) => ExpeditionRunV1): Promise<ExpeditionRunV1> {
+    return this.tx([S_RUN], 'readwrite', async (t) => {
+      const rs = t.objectStore(S_RUN);
+      const run = this.must(await req(rs.get(KEY)), knownIds);
+      const next = fn(run);
+      if (next !== run) await req(rs.put(next, KEY));
+      return next;
+    });
+  }
+  chooseBranch(rev: number, option: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleBranch(r, rev, option)); }
+  leaveSupply(rev: number, equipped: readonly string[], knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleSupply(r, rev, equipped)); }
+  setLead(rev: number, charId: string, knownIds: readonly string[]): Promise<ExpeditionRunV1> { return this.change(knownIds, (r) => ruleLead(r, rev, charId)); }
+
+  /** 三選一：選卡（或略過）和結算紀錄上的 picked 在同一個 transaction 裡寫 */
+  async pickReward(rev: number, cardId: string | null, knownIds: readonly string[]): Promise<ExpeditionRunV1> {
+    return this.tx([S_RUN, S_SETTLE], 'readwrite', async (t) => {
+      const rs = t.objectStore(S_RUN), ss = t.objectStore(S_SETTLE);
+      const run = this.must(await req(rs.get(KEY)), knownIds);
+      const next = rulePick(run, rev, cardId);
+      const sid = (run.pendingReward as { settlementId: string }).settlementId;
+      const st = await req(ss.get(sid)) as SettlementV1 | undefined;
+      await req(rs.put(next, KEY));
+      if (st) await req(ss.put({ ...st, picked: cardId }));
+      return next;
+    });
+  }
+
+  /** 這一輪的結算紀錄，依時間排（日誌用） */
+  async settlementsOf(runId: string): Promise<SettlementV1[]> {
+    return this.tx([S_SETTLE], 'readonly', async (t) => {
+      const all = await req(t.objectStore(S_SETTLE).getAll()) as SettlementV1[];
+      return all.filter((s) => s.runId === runId).sort((a, b) => a.revision - b.revision);
     });
   }
 
@@ -178,6 +216,13 @@ export class ExpeditionDb {
       settlements: await req(t.objectStore(S_SETTLE).getAll()),
       quarantine: await req(t.objectStore(S_QUAR).getAll()),
     }));
+  }
+
+  private mustProfile(raw: unknown, knownIds: readonly string[]): ProfileV1 {
+    if (raw === undefined) return newProfile();
+    const v = validateProfile(raw, knownIds);
+    if (!v.ok) throw new RuleError('invalid', 'profile is ' + v.reason + ': ' + v.detail);
+    return v.value;
   }
 
   private must(raw: unknown, knownIds: readonly string[]): ExpeditionRunV1 {
